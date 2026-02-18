@@ -1,275 +1,296 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 
-#include <fstream>
-#include <iostream>
 #include <RcppArmadillo.h>
-#include <Rcpp.h> // Explicitly include Rcpp.h
-#include <cmath>  // For std::sqrt, std::log, std::abs
+#include <Rcpp.h>
+#include <cmath>
+#include <vector>
 
-#include "common_helpers.h" // Include your new general helpers header
+#include "common_helpers.h"
 
-// [[Rcpp::export(fit_linear_exploded)]]
-List fit_linear_exploded(
-    const arma::mat &X, // Design matrix
-    const arma::vec &Y, // Response vector
-    arma::vec mu,         // estimated beta coefficient from lasso
-    arma::vec omega,      // Expectation that the coefficient from lasso is not zero
+// [[Rcpp::export]]
+Rcpp::List run_vb_updates_cpp(
+    const arma::mat& X, // Design matrix
+    const arma::vec& Y, // Response vector
+    arma::vec mu, // estimated beta coefficient from lasso
+    arma::vec omega, // Expectation that the coefficient from lasso is not zero
     double c_pi,    // Parameter of the Beta prior for pi
     double d_pi,    // Parameter of the Beta prior for pi
-    double tau_e,   // Precision of the errors
-    const arma::uvec &update_order, // Order in which to update the coefficients
-    arma::vec mu_alpha,   // alpha_j is N(mu_alpha_j, (tau_e*tau_alpha)^{-1}), known/estimated
+    double tau_e, // Precision of the errors
+    const arma::uvec& update_order, // Order in which to update the coefficients
+    arma::vec mu_alpha, // alpha_j is N(mu_alpha_j, (tau_e*tau_alpha)^{-1}), known/estimated
     double tau_alpha, // Precision of the Normal prior for the expansion parameters (alpha_j)
-    arma::vec tau_b,      // Precision of the prior for the coefficients (b_j)
-    const size_t &max_iter,   // Maximum number of iterations
-    const double &tol        // Tolerance for convergence
+    arma::vec tau_b, // Precision of the prior for the coefficients (b_j)
+    int max_iter, // Maximum number of iterations
+    double tol, // Tolerance for convergence
+    bool save_history = true // Whether to store per-iteration history
 ) {
+  int n = X.n_rows;
+  int p = X.n_cols;
 
-  // dimensions
-  double p = X.n_cols;
+  // Precomputations
+  arma::vec YX_vec = X.t() * Y;
+  arma::mat X_2 = square(X);
+  arma::vec X_2_col_sums = arma::sum(X_2, 0).t();
+  double Y2 = arma::dot(Y, Y);
 
+  // Posterior sigma initialization
+  arma::vec sigma = 1.0 / arma::sqrt(tau_e * (X_2_col_sums + tau_b));
+  arma::vec alpha_j_optimal(p + 1, fill::ones);
+  arma::vec logit_phi = arma::log(omega / (1.0 - omega));
 
-  // initializations
-  arma::vec old_entr = entropy(omega);
-
-  // R1 update specific global sum variable (initialized only if use_r1_update is true)
-  arma::rowvec YX_vec = Y.t() * X;
-  arma::mat XtX = X.t() * X; // Precompute X^t X
-  arma::vec half_diag = gram_diag(X);
-  arma::vec approx_mean = omega % mu;
-
-  arma::vec alpha_j_optimal(p, fill::ones);
   arma::vec mu_tilde = mu;
-  arma::vec sigma = 1 / arma::sqrt(tau_e * (half_diag + tau_b));
+
   arma::vec sigma_tilde = sigma;
   arma::vec tau_b_tilde = tau_b;
   arma::vec mu_alpha_tilde = mu_alpha;
+  // Trackers for convergence and "exploded" logic
+  arma::vec omega_old = omega;
+  arma::vec W = X * (omega % mu);
+  arma::vec var_W_vec = X_2 * (arma::square(mu) % omega % (1.0 - omega) + arma::square(sigma) % omega);
 
-  arma::vec W = X * approx_mean;
-  arma::mat X_2 = arma::square(X);
+  arma::vec alpha_prod(p, fill::ones);
 
-  double a_pi = c_pi;
-  double b_pi = d_pi;
-  double E_logit_pi = r_digamma(a_pi) - r_digamma(b_pi);
+  double var_W = arma::accu(var_W_vec);
+
+  // Initial prior expectation for pi
+  double pi_fixed = c_pi / (c_pi + d_pi);
+  double E_logit_pi = std::log(pi_fixed) - std::log(1-pi_fixed);
+
+  // History Storage — dynamic vectors, pushed per iteration
+  std::vector<arma::vec> mu_hist, omega_hist, sigma_hist;
+  std::vector<arma::vec> tau_b_hist, mu_alpha_hist, alpha_hist;
+  std::vector<double> conv_hist, elbo_hist;
 
   bool converged = false;
-  double convergence_criterion = -999.0;
-  size_t iter = 0;
-  // std::cout << "iter: " << iter << std::endl;
-  for (iter = 0; iter < max_iter; ++iter) {
-    // std::cout << "Iteration: " << iter << std::endl;
+  int last_iter = 0;
+  for (int iter = 0; iter < max_iter; ++iter) {
 
-    vec new_entr = zeros<vec>(p);
+    arma::vec new_entr(p, fill::zeros);
+    alpha_prod.ones();
+    arma::vec W_old = W;
 
-    for (size_t k = 0; k < p; ++k) {
+    arma::vec mu_old, sigma_old, tau_b_old, mu_alpha_old;
+
+    for (int k = 0; k < p; ++k) {
       Rcpp::checkUserInterrupt();
-      uword j = update_order(k);
-      // std::cout << "j: " << j << std::endl;
+      mu_old = mu;
+      sigma_old = sigma;
+      tau_b_old = tau_b;
+      mu_alpha_old = mu_alpha;
+      omega_old = omega;
+      arma::vec logit_phi_old = logit_phi;
+
+      unsigned int j = update_order(k);  // 0-based index
+
+      arma::vec W_j = W - (omega(j) * mu(j)) * X.col(j);
+      double coeff = (mu(j) * mu(j) * omega(j) * (1.0 - omega(j)) + sigma(j) * sigma(j) * omega(j));
+      double var_W_j = var_W - X_2_col_sums(j) * coeff;
+      arma::vec var_W_vec_j = var_W_vec - X_2.col(j) * coeff;
+      double W_j_squared = var_W_j + arma::dot(W_j, W_j);
 
 
-      // Calculate W_j using the online update optimization
-      // std::cout << "Calculate W_j using the online update optimization" << std::endl;
-      arma::vec W_j = W - approx_mean(j) * X.col(j);
-      arma::vec var_W = X_2 * (arma::square(mu) % omega % (1 - omega) + sigma % sigma % omega);
-      arma::vec var_W_j = var_W - X_2.col(j) * (mu(j)* mu(j) * omega(j) * (1 - omega(j)) + sigma(j) * sigma(j) * omega(j));
-      double W_j_squared = arma::sum(var_W_j + arma::square(W_j));
-
-      // std::cout << "Calculate Lambda" << std::endl;
-      // Calculate Lambda and eta for s_j = 0
-      auto lambda_eta_sigma_0 = calculate_lambda_eta_sigma(
+      Rcpp::List res0 = calculate_lambda_eta_sigma_update_cpp(
         X,
-        XtX,
+        X_2_col_sums,
         YX_vec,
         Y,
         W_j,
         W_j_squared,
-        0,
+        0.0,
         j,
         tau_e,
         tau_b,
         tau_alpha,
         mu_alpha
-        );
+      );
+      arma::mat Lambda_j_0 = res0["Lambda_j"];
+      arma::vec eta_j_0    = res0["eta_j"];
 
-      arma::mat Lambda_j_0 = std::get<0>(lambda_eta_sigma_0);
-      arma::mat Sigma_j_0 = std::get<1>(lambda_eta_sigma_0);
-      arma::vec eta_j_0 = std::get<2>(lambda_eta_sigma_0);
-
-      // Calculate Lambda and eta for s_j = 1
-      auto lambda_eta_sigma_1 = calculate_lambda_eta_sigma(
+      Rcpp::List res1 = calculate_lambda_eta_sigma_update_cpp(
         X,
-        XtX,
+        X_2_col_sums,
         YX_vec,
         Y,
         W_j,
         W_j_squared,
-        1,
+        1.0,
         j,
         tau_e,
         tau_b,
         tau_alpha,
         mu_alpha
-        );
+      );
+      arma::mat Lambda_j_1 = res1["Lambda_j"];
+      arma::vec eta_j_1    = res1["eta_j"];
 
-      arma::mat Lambda_j_1 = std::get<0>(lambda_eta_sigma_1);
-      arma::mat Sigma_j_1 = std::get<1>(lambda_eta_sigma_1);
-      arma::vec eta_j_1 = std::get<2>(lambda_eta_sigma_1);
+      double det0 = Lambda_j_0(0,0) * Lambda_j_0(1,1) - std::pow(Lambda_j_0(0,1), 2.0);
+      double det1 = Lambda_j_1(0,0) * Lambda_j_1(1,1) - std::pow(Lambda_j_1(0,1), 2.0);
 
-      // Calculate logit(phi_j)
-      // std::cout << "Calculate logit(phi_j)" << std::endl;
-      double det_Lambda_j_0 = Lambda_j_0(0, 0) * Lambda_j_0(1, 1) - pow(Lambda_j_0(0, 1), 2);
-      double det_Lambda_j_1 = Lambda_j_1(0, 0) * Lambda_j_1(1, 1) - pow(Lambda_j_1(0, 1), 2);
+      double eps = std::numeric_limits<double>::epsilon();
+      det0 = std::max(det0, eps);
+      det1 = std::max(det1, eps);
 
-      // Safeguard determinants for log(): ensure they are positive and not too small
-      det_Lambda_j_0 = std::max(arma::datum::eps, det_Lambda_j_0);
-      det_Lambda_j_1 = std::max(arma::datum::eps, det_Lambda_j_1);
+      double logit_phi_j =
+        E_logit_pi +
+        0.5 * std::log(det0 / det1) -
+        0.5 * std::pow(eta_j_0(1), 2.0) * Lambda_j_0(1,1) +
+        0.5 * std::pow(eta_j_1(0), 2.0) * Lambda_j_1(0,0) +
+        eta_j_1(0) * eta_j_1(1) * Lambda_j_1(0,1) +
+        0.5 * std::pow(eta_j_1(1), 2.0) * Lambda_j_1(1,1);
 
-      double logit_phi_j = E_logit_pi +
-        0.5 * log( det_Lambda_j_0 / det_Lambda_j_1 ) -
-        0.5 * pow(eta_j_0(1), 2) * Lambda_j_0(1, 1) +
-        0.5 * pow(eta_j_1(0), 2) * Lambda_j_1(0, 0) +
-        eta_j_1(0) * eta_j_1(1) * Lambda_j_1(0, 1) +
-        0.5 * pow(eta_j_1(1), 2) * Lambda_j_1(1, 1);
+      logit_phi(j) = logit_phi_j;
 
-      double phi_j = sigmoid(logit_phi_j);
+      mu(j) = eta_j_1(0) - Lambda_j_1(0,1) / Lambda_j_1(0,0) * (1.0 - eta_j_1(1));
+      sigma(j) = std::sqrt(1.0 / Lambda_j_1(0,0));
 
-      // std::cout << "optimal alpha_j" << std::endl;
-      // Calculate optimal alpha_j using a simple grid search optimizer ---
-      double var_alpha_0 = Sigma_j_0(1,1);
-      double var_alpha_1 = Sigma_j_1(1,1);
+      double L_0 = Lambda_j_0(1,1) - std::pow(Lambda_j_0(0,1), 2.0) / Lambda_j_0(0,0);
+      double L_1 = Lambda_j_1(1,1) - std::pow(Lambda_j_1(0,1), 2.0) / Lambda_j_1(0,0);
 
-      // Safeguard variances for division (ensure they are positive and not too small)
-      if (var_alpha_0 < arma::datum::eps) var_alpha_0 = arma::datum::eps;
-      if (var_alpha_1 < arma::datum::eps) var_alpha_1 = arma::datum::eps;
+      double g_0 = -0.5 * L_0 * std::pow(1.0 - eta_j_0(1), 2.0);
+      double g_1 = -0.5 * L_1 * std::pow(1.0 - eta_j_1(1), 2.0);
 
-      // Define a search interval around the means of the two distributions
-      double mean_min = std::min(eta_j_0(1), eta_j_1(1));
-      double mean_max = std::max(eta_j_0(1), eta_j_1(1));
-      double search_range = std::max(mean_max - mean_min, 1.0); // Ensure a reasonable range
-      double lower_bound = mean_min - search_range;
-      double upper_bound = mean_max + search_range;
+      omega(j) = sigmoid_cpp(logit_phi_j + (g_1 - g_0));
 
-      double max_density = -1.0;
-      double optimal_alpha_j = 0.0;
+      double R_1 = std::pow(Lambda_j_1(0,1), 2.0) / Lambda_j_1(0,0);
 
-      // Perform a grid search with a fine resolution
-      const int num_steps = 1000;
-      double step_size = (upper_bound - lower_bound) / num_steps;
-      for (int i = 0; i <= num_steps; ++i) {
-        double alpha_val = lower_bound + i * step_size;
-        double current_density = mixture_pdf(alpha_val, phi_j, eta_j_0(1), var_alpha_0, eta_j_1(1), var_alpha_1);
-        if (current_density > max_density) {
-          max_density = current_density;
-          optimal_alpha_j = alpha_val;
-        }
-      }
+      double sigma2_alpha_0 = 1.0 / L_0;
+      double sigma2_alpha_1 = 1.0 / (L_1 + R_1);
 
+      double mu_alpha_0 = eta_j_0(1);
+      double mu_alpha_1 = (L_1 * eta_j_1(1) + R_1) * sigma2_alpha_1;
+
+      double D_j = (omega(j) * sigma2_alpha_0) / (omega(j) * sigma2_alpha_0 + (1.0 - omega(j)) * sigma2_alpha_1);
+
+      double optimal_alpha_j = D_j * mu_alpha_1 + (1.0 - D_j) * mu_alpha_0;
       alpha_j_optimal(j) = optimal_alpha_j;
 
-      // Update omega_j (posterior expectation of s_j)
-      double f_alpha_0 = gaussian_pdf(optimal_alpha_j, eta_j_0(1), var_alpha_0);
-      double f_alpha_1 = gaussian_pdf(optimal_alpha_j, eta_j_1(1), var_alpha_1);
+      mu_tilde        = mu * optimal_alpha_j;
+      sigma_tilde     = sigma * std::fabs(optimal_alpha_j);
+      tau_b_tilde     = tau_b / (optimal_alpha_j * optimal_alpha_j);
+      mu_alpha_tilde  = mu_alpha;
 
-      // Safeguard denominator in omega(j) calculation
-      double omega_denominator = phi_j * f_alpha_1 + (1 - phi_j) * f_alpha_0;
-      if (omega_denominator < arma::datum::eps) { // Check if denominator is too small
-        omega(j) = arma::datum::nan; // Propagate NaN if numerically unstable
-      } else {
-        omega(j) = (phi_j * f_alpha_1) / omega_denominator;
-      }
+      mu_tilde(j)       = mu(j);
+      sigma_tilde(j)    = sigma(j);
+      tau_b_tilde(j)    = tau_b(j);
+      mu_alpha_tilde(j) = 1.0 - (optimal_alpha_j - mu_alpha(j));
 
-      // After calculating omega(j)
-      if (!arma::is_finite(omega(j))) {
-        Rcpp::stop("omega(j) became NaN or Inf at j = %u, iter = %zu. Denominator: %f", j, iter, omega_denominator);
-      }
-
-      // And before using old_E_bs_j:
-      if (!arma::is_finite(mu(j)) || !arma::is_finite(omega(j))) {
-        Rcpp::stop("mu(j) or omega(j) is not finite before old_E_bs_j calculation at j = %u, iter = %zu", j, iter);
-      }
-
-      // Also check W_j and W_j_squared:
-      if (!W_j.is_finite()) {
-        Rcpp::stop("W_j became NaN or Inf at j = %u, iter = %zu", j, iter);
-      }
-      if (!arma::is_finite(W_j_squared)) {
-        Rcpp::stop("W_j_squared became NaN or Inf at j = %u, iter = %zu", j, iter);
-      }
-
-      // Update mu_j (posterior mean of b_j when s_j = 1)
-      mu(j) = eta_j_1(0) - Sigma_j_1(0, 1) / Sigma_j_1(1, 1) * (optimal_alpha_j - eta_j_1(1));
-
-      // Update sigma_j^2 (variance of b_j when s_j = 1)
-      sigma(j) = 1.0 / (tau_e * XtX(j, j) + tau_e * tau_b(j));
-
-      // --- Remapping step ---
-      mu_tilde = mu;
-      sigma_tilde = sigma;
-      tau_b_tilde = tau_b;
-      mu_alpha_tilde = mu_alpha;
-
-      for (uword l = 0; l < p; ++l) {
-        if (l != j) {
-          mu_tilde(l) *= optimal_alpha_j;
-          sigma_tilde(l) *= pow(optimal_alpha_j, 2);
-          tau_b_tilde(l) /= pow(optimal_alpha_j, 2);
-        }
-        if (l == j) {
-          mu_alpha_tilde(l) = 1.0 - (optimal_alpha_j - mu_alpha(l));
-        } else {
-          mu_alpha_tilde(l) = mu_alpha(l);
-        }
-      }
-
-      // --- Set expanded to original ---
-      mu = mu_tilde;
-      sigma = sigma_tilde;
-      tau_b = tau_b_tilde;
+      mu       = mu_tilde;
+      sigma    = sigma_tilde;
+      tau_b    = tau_b_tilde;
       mu_alpha = mu_alpha_tilde;
 
-      // Update q(pi)
-      double M = sum(omega);
-      a_pi = c_pi + M;
-      b_pi = d_pi + p - M;
-      E_logit_pi = r_digamma(a_pi) - r_digamma(b_pi);
-
-      // Update W with the new mu and omega
-      // approx_mean = omega % mu;
-      // var_W = optimal_alpha_j*optimal_alpha_j*var_W_j + X_2.col(j) * (mu(j)* mu(j) * omega(j) * (1 - omega(j)) + sigma(j) * sigma(j) * omega(j));
-      // W = optimal_alpha_j*W_j + approx_mean(j) * X.col(j);
-
-      // Redefine W O(np)
-      approx_mean = (omega % mu);
-      W = X * approx_mean;
-
-    } // end of for k loop
-
-
-    // Check for convergence
-    new_entr = entropy(omega);
-
-    if ( norm(new_entr - old_entr, "inf") <= tol ) {
-      converged = true;
-      convergence_criterion = norm(new_entr - old_entr, "inf");
-      break;
-    } else {
-      convergence_criterion = norm(new_entr - old_entr, "inf");
-      old_entr = new_entr;
+      W       = optimal_alpha_j * W_j + (omega(j) * mu(j)) * X.col(j);
+      coeff   = (mu(j) * mu(j) * omega(j) * (1.0 - omega(j)) + sigma(j) * sigma(j) * omega(j));
+      var_W   = optimal_alpha_j * optimal_alpha_j * var_W_j + X_2_col_sums(j) * coeff;
+      var_W_vec = optimal_alpha_j * optimal_alpha_j * var_W_vec_j + X_2.col(j) * coeff;
     }
-  } // end of for iter loop
 
-  return Rcpp::List::create(
-    Rcpp::Named("mu") = mu,
-    Rcpp::Named("omega") = omega,
-    Rcpp::Named("sigma") = sigma,
-    Rcpp::Named("mu_alpha") = mu_alpha,
-    Rcpp::Named("iterations") = iter + 1,
-    Rcpp::Named("tau_alpha") = tau_alpha,
-    Rcpp::Named("tau_b") = tau_b,
-    Rcpp::Named("E_logit_pi") = E_logit_pi,
-    Rcpp::Named("a_pi") = a_pi,
-    Rcpp::Named("b_pi") = b_pi,
-    Rcpp::Named("converged") = converged,
-    Rcpp::Named("convergence_criterion") = convergence_criterion
+    double t_YW = arma::dot(W, Y);
+    double t_W2 = var_W + arma::dot(W, W);
+
+    int idx_p1 = p;
+    double optimal_alpha_p1 = (t_YW + tau_alpha * mu_alpha(idx_p1)) / (t_W2 + tau_alpha);
+    alpha_j_optimal(idx_p1) = optimal_alpha_p1;
+
+    mu        = optimal_alpha_p1 * mu;
+    sigma     = std::fabs(optimal_alpha_p1) * sigma;
+    tau_b     = tau_b / (optimal_alpha_p1 * optimal_alpha_p1);
+    mu_alpha(idx_p1) = 1.0 - (optimal_alpha_p1 - mu_alpha(idx_p1));
+
+    W         = optimal_alpha_p1 * W;
+    var_W     = optimal_alpha_p1 * optimal_alpha_p1 * var_W;
+    var_W_vec = optimal_alpha_p1 * optimal_alpha_p1 * var_W_vec;
+
+    t_YW = arma::dot(W, Y);
+    t_W2 = var_W + arma::dot(W, W);
+
+
+    double convg2 = 1.0;
+
+    if (iter > 0) {
+
+      arma::vec tmp = (W_old - W);
+      arma::vec stat_vec = arma::square(tmp) / var_W_vec;
+      double max_stat = stat_vec.max() / std::log((double)n);
+      convg2 = R::pchisq(max_stat, 1.0, 1, 0);  // lower.tail=TRUE, log.p=FALSE
+
+    }
+
+    // Compute ELBO using current parameters
+    Rcpp::List elbo_res = compute_elbo_cpp(
+      mu,
+      sigma,
+      omega,
+      tau_b,
+      mu_alpha,
+      Y2,
+      t_YW,
+      t_W2,
+      tau_alpha,
+      tau_e,
+      pi_fixed
+    );
+    double current_elbo = elbo_res["ELBO"];
+
+    // Save history — push only what's needed
+    if (save_history) {
+      mu_hist.push_back(mu);
+      omega_hist.push_back(omega);
+      sigma_hist.push_back(sigma);
+      tau_b_hist.push_back(tau_b);
+      mu_alpha_hist.push_back(mu_alpha);
+      alpha_hist.push_back(alpha_j_optimal);
+    }
+    conv_hist.push_back(convg2);
+    elbo_hist.push_back(current_elbo);
+
+    // --- Convergence Checks --
+    last_iter = iter;
+    if (convg2 < tol) {
+      converged = true;
+      break;
+    }
+  }
+
+  // Convert scalar histories to arma::vec
+  arma::vec conv_vec(conv_hist);
+  arma::vec elbo_vec(elbo_hist);
+
+  // Build the result list
+  Rcpp::List result = Rcpp::List::create(
+    Named("converged") = converged,
+    Named("iterations") = last_iter + 1,
+    Named("convergence_criterion") = conv_hist.back(),
+    Named("convergence_history") = conv_vec,
+    Named("elbo_history") = elbo_vec,
+    Named("mu") = mu,
+    Named("omega") = omega,
+    Named("sigma") = sigma,
+    Named("tau_b") = tau_b,
+    Named("mu_alpha") = mu_alpha
   );
+
+  // Append per-iteration history matrices only if requested
+  if (save_history) {
+    int niters = static_cast<int>(mu_hist.size());
+    arma::mat m_mu(p, niters), m_omega(p, niters), m_sigma(p, niters);
+    arma::mat m_tau_b(p, niters);
+    arma::mat m_mu_alpha(p + 1, niters), m_alpha(p + 1, niters);
+    for (int i = 0; i < niters; ++i) {
+      m_mu.col(i)       = mu_hist[i];
+      m_omega.col(i)    = omega_hist[i];
+      m_sigma.col(i)    = sigma_hist[i];
+      m_tau_b.col(i)    = tau_b_hist[i];
+      m_mu_alpha.col(i) = mu_alpha_hist[i];
+      m_alpha.col(i)    = alpha_hist[i];
+    }
+    result["mu_history"]       = m_mu;
+    result["omega_history"]    = m_omega;
+    result["sigma_history"]    = m_sigma;
+    result["tau_b_history"]    = m_tau_b;
+    result["mu_alpha_history"] = m_mu_alpha;
+    result["alpha_history"]    = m_alpha;
+  }
+
+  return result;
 }

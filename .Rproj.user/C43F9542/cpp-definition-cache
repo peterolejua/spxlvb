@@ -1,76 +1,36 @@
 [
     {
         "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.cpp",
-        "file_last_write": 1754936558.0,
+        "file_last_write": 1769112650.0,
         "definitions": [
             {
-                "usr": "c:@F@entropy#&1$@N@arma@S@Col>#d#",
+                "usr": "c:@F@compute_elbo_cpp#&1$@N@arma@S@Col>#d#S0_#S0_#S0_#S0_#d#d#d#d#d#d#",
                 "kind": 6,
                 "parent_name": "",
-                "name": "entropy(const arma::vec &)",
+                "name": "compute_elbo_cpp(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, double, double, double, double, double, double)",
                 "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.cpp",
-                "line": 5,
-                "column": 11,
+                "line": 11,
+                "column": 12,
                 "hidden": false
             },
             {
-                "usr": "c:@F@sigmoid#&1d#",
+                "usr": "c:@F@sigmoid_cpp#&1d#",
                 "kind": 6,
                 "parent_name": "",
-                "name": "sigmoid(const double &)",
+                "name": "sigmoid_cpp(const double &)",
                 "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.cpp",
-                "line": 16,
+                "line": 86,
                 "column": 8,
                 "hidden": false
             },
             {
-                "usr": "c:@F@gram_diag#&1$@N@arma@S@Mat>#d#",
+                "usr": "c:@F@calculate_lambda_eta_sigma_update_cpp#&1$@N@arma@S@Mat>#d#&1$@N@arma@S@Col>#d#S2_#S2_#S2_#d#d#i#d#S2_#d#S2_#",
                 "kind": 6,
                 "parent_name": "",
-                "name": "gram_diag(const arma::mat &)",
+                "name": "calculate_lambda_eta_sigma_update_cpp(const arma::mat &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, double, double, unsigned int, double, const arma::vec &, double, const arma::vec &)",
                 "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.cpp",
-                "line": 26,
-                "column": 11,
-                "hidden": false
-            },
-            {
-                "usr": "c:@F@r_digamma#d#",
-                "kind": 6,
-                "parent_name": "",
-                "name": "r_digamma(double)",
-                "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.cpp",
-                "line": 36,
-                "column": 8,
-                "hidden": false
-            },
-            {
-                "usr": "c:@F@calculate_lambda_eta_sigma#&1$@N@arma@S@Mat>#d#S0_#&1$@N@arma@S@Row>#d#&1$@N@arma@S@Col>#d#S4_#d#I#i#d#S4_#d#S4_#",
-                "kind": 6,
-                "parent_name": "",
-                "name": "calculate_lambda_eta_sigma(const mat &, const mat &, const rowvec &, const vec &, const vec &, double, int, uword, double, const vec &, double, const vec &)",
-                "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.cpp",
-                "line": 43,
-                "column": 27,
-                "hidden": false
-            },
-            {
-                "usr": "c:@F@gaussian_pdf#d#d#d#",
-                "kind": 6,
-                "parent_name": "",
-                "name": "gaussian_pdf(double, double, double)",
-                "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.cpp",
-                "line": 81,
-                "column": 8,
-                "hidden": false
-            },
-            {
-                "usr": "c:@F@mixture_pdf#d#d#d#d#d#d#",
-                "kind": 6,
-                "parent_name": "",
-                "name": "mixture_pdf(double, double, double, double, double, double)",
-                "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.cpp",
-                "line": 91,
-                "column": 8,
+                "line": 97,
+                "column": 12,
                 "hidden": false
             }
         ],
@@ -78,22 +38,22 @@
     },
     {
         "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/common_helpers.h",
-        "file_last_write": 1754936558.0,
+        "file_last_write": 1769112647.0,
         "definitions": [],
         "hidden": false
     },
     {
         "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/fit_linear_gaussian_exploded.cpp",
-        "file_last_write": 1754936558.0,
+        "file_last_write": 1769748143.0,
         "definitions": [
             {
-                "usr": "c:@F@fit_linear_exploded#&1$@N@arma@S@Mat>#d#&1$@N@arma@S@Col>#d#S3_#S3_#d#d#d#&1$@N@arma@S@Col>#i#S3_#d#S3_#&1l#&1d#",
+                "usr": "c:@F@run_vb_updates_cpp#&1$@N@arma@S@Mat>#d#&1$@N@arma@S@Col>#d#S3_#S3_#d#d#d#&1$@N@arma@S@Col>#i#S3_#d#S3_#I#d#",
                 "kind": 6,
                 "parent_name": "",
-                "name": "fit_linear_exploded(const arma::mat &, const arma::vec &, arma::vec, arma::vec, double, double, double, const arma::uvec &, arma::vec, double, arma::vec, const size_t &, const double &)",
+                "name": "run_vb_updates_cpp(const arma::mat &, const arma::vec &, arma::vec, arma::vec, double, double, double, const arma::uvec &, arma::vec, double, arma::vec, int, double)",
                 "file": "/home/peter/OneDrive/courses/20250729 Project 2/spxlvb/src/fit_linear_gaussian_exploded.cpp",
                 "line": 12,
-                "column": 6,
+                "column": 12,
                 "hidden": false
             }
         ],

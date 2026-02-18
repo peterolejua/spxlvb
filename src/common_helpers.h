@@ -8,38 +8,39 @@
 using namespace arma;
 using namespace Rcpp;
 
-// Function declaration for entropy()
-arma::vec entropy(const arma::vec &x);
-
-// Function declaration for sigmoid()
-double sigmoid(const double &x);
-
-// Function declaration for gram_diag()
-arma::vec gram_diag(const arma::mat &X);
-
-// Function declaration for r_digamma()
-double r_digamma(double x);
-
-// Function declaration for calculate_lambda_eta_sigma()
-std::tuple<mat, mat, vec> calculate_lambda_eta_sigma(
-    const mat &X,
-    const mat &XtX,
-    const rowvec &YX_vec,
-    const vec &Y,
-    const vec &W_j,
-    double W_j_squared,
-    int s_j_val,
-    uword j,
-    double tau_e,
-    const vec &tau_b,
+// Function declaration for compute_elbo()
+Rcpp::List compute_elbo_cpp(
+    const arma::vec& mu,
+    const arma::vec& sigma,
+    const arma::vec& omega,
+    const arma::vec& tau_b,
+    const arma::vec& mu_alpha,
+    double Y2,
+    double t_YW,
+    double t_W2,
     double tau_alpha,
-    const vec &mu_alpha
+    double tau_e,
+    double pi_fixed
 );
 
-// Function declaration for gaussian_pdf()
-double gaussian_pdf(double x, double mean, double variance);
 
-// Function declaration for mixture_pdf()
-double mixture_pdf(double alpha, double phi, double mean0, double var0, double mean1, double var1);
+// Function declaration for sigmoid()
+double sigmoid_cpp(const double &x);
+
+// Function declaration for calculate_lambda_eta_sigma()
+Rcpp::List calculate_lambda_eta_sigma_update_cpp(
+    const arma::mat& X,
+    const arma::vec& X_2_col_sums,   // precomputed column sums of X^2
+    const arma::vec& YX_vec,  // precomputed t(X) %*% Y
+    const arma::vec& Y,
+    const arma::vec& W_j,
+    double W_j_squared,
+    double s_j_val,
+    unsigned int j,           // 0-based index
+    double tau_e,
+    const arma::vec& tau_b,
+    double tau_alpha,
+    const arma::vec& mu_alpha
+);
 
 #endif // COMMON_HELPERS_H

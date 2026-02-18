@@ -1,2 +1,10 @@
 ^spxlvb\.Rproj$
 ^\.Rproj\.user$
+^\.Rhistory$
+^\.RData$
+^\.git$
+^\.DS_Store$
+^NEWS\.md$
+^cran-comments\.md$
+^WORDLIST$
+^github-update\.txt$

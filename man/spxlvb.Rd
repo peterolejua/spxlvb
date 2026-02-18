@@ -7,18 +7,20 @@
 spxlvb(
   X,
   Y,
-  mu = NULL,
-  omega = NULL,
-  c_pi = NULL,
-  d_pi = NULL,
+  mu_0 = NULL,
+  omega_0 = NULL,
+  c_pi_0 = NULL,
+  d_pi_0 = NULL,
   tau_e = NULL,
   update_order = NULL,
-  mu_alpha = rep(1, ncol(X)),
-  tau_alpha = 1000,
-  tau_b = rep(400, ncol(X)),
-  intercept = FALSE,
+  mu_alpha = rep(1, ncol(X) + 1),
+  alpha_prior_precision = 1000,
+  b_prior_precision = rep(1, ncol(X)),
+  standardize = TRUE,
+  intercept = TRUE,
   max_iter = 1000,
-  tol = 1e-05,
+  tol = 0.001,
+  save_history = TRUE,
   seed = 12376
 )
 }
@@ -27,29 +29,33 @@ spxlvb(
 
 \item{Y}{A numeric vector. The response vector of length n.}
 
-\item{mu}{Optional numeric vector. Initial variational means for regression coefficients.}
+\item{mu_0}{Optional numeric vector. Initial variational means for regression coefficients.}
 
-\item{omega}{Optional numeric vector. Initial spike probabilities.}
+\item{omega_0}{Optional numeric vector. Initial spike probabilities.}
 
-\item{c_pi}{Optional numeric. Prior Beta(a, b) parameter a for the spike probability.}
+\item{c_pi_0}{Optional numeric. Prior Beta(a, b) parameter a for the spike probability.}
 
-\item{d_pi}{Optional numeric. Prior Beta(a, b) parameter b for the spike probability.}
+\item{d_pi_0}{Optional numeric. Prior Beta(a, b) parameter b for the spike probability.}
 
 \item{tau_e}{Optional numeric. Known or estimated error precision.}
 
 \item{update_order}{Optional integer vector. The coordinate update order (0-indexed for C++).}
 
-\item{mu_alpha}{Prior mean for alpha. Default is mu_alpha_j = 1.}
+\item{mu_alpha}{Prior mean for alpha. Default is rep(1, ncol(X)).}
 
-\item{tau_alpha}{Prior precision for alpha. Default is 1000.}
+\item{alpha_prior_precision}{Prior precision for alpha. \eqn{\alpha_j \sim N\{\mu_{\alpha j},(\tau_{\epsilon}\tau_\alpha)^{-1}}. Default is 1000.}
 
-\item{tau_b}{Slab prior precision. Default is a tau_b_j = 400.}
+\item{b_prior_precision}{Slab prior precision. \eqn{b_j \sim N\{0,(\tau_{\epsilon}\tau_{bj})^{-1}}. Default is a \eqn{\tau_b_j = 1/\tau_{\epsilon}}.}
 
-\item{intercept}{Logical. Whether to include an intercept. Default is FALSE.}
+\item{standardize}{Logical. Center Y, and center and scale X. Default is TRUE.}
+
+\item{intercept}{Logical. Whether to include an intercept. Default is TRUE. After the model is fit on the centered and scaled data, the final coefficients are "unscaled" to put them back on the original scale of your data. The intercept is then calculated separately using the means and the final coefficients.}
 
 \item{max_iter}{Maximum number of iterations for the variational update. Default is 1000.}
 
 \item{tol}{Convergence threshold for entropy and alpha change. Default is 1e-5.}
+
+\item{save_history}{Logical. If TRUE (default), per-iteration parameter histories are stored and returned. Set to FALSE to save memory in large-scale simulations.}
 
 \item{seed}{Integer seed for cross-validation in glmnet. Default is 12376.}
 }

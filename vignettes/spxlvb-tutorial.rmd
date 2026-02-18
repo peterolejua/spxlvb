@@ -1,0 +1,310 @@
+---
+title: "Introduction to spxlvb"
+author: "Peter Olejua, Alexander Mclain"
+date: "`r Sys.Date()`" 
+output: rmarkdown::html_vignette 
+vignette: > 
+  %\VignetteIndexEntry{Introduction to spxlvb} 
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown} 
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Overview
+
+The `spxlvb` package implements a Parameter Exploded Variational Bayes (PX-VB) algorithm for high-dimensional linear regression with spike-and-slab priors. Standard mean-field Variational Bayes (VB) often suffers from poor predictive calibration and underestimation of posterior variance in high dimensions. `spxlvb` mitigates these issues by introducing an expansion parameters ($\alpha$) to decouple the estimation of the signal's location from its scale, achieving better calibration and robustness to prior specifications.
+
+# Installation
+
+You can install the development version of spxlvb from GitHub:
+
+```{r eval=FALSE}
+# install.packages("remotes")
+remotes::install_github("peterolejua/spxlvb")
+```
+
+
+# Example: High-Dimensional Variable Selection
+
+In this example, we will generate a synthetic high-dimensional dataset with correlated features, fit the `spxlvb` model, and compare the estimated coefficients to the true signal.
+
+## 1. Generating Data
+
+The package includes helper functions to generate data with a Matérn correlation structure, simulating realistic linkage disequilibrium or spatial dependency among covariates.
+
+```{r}
+library(spxlvb)
+library(doParallel)
+cl <- makeCluster(min(2, parallel::detectCores()))
+registerDoParallel(cl)
+```
+
+
+```{r}
+n <- 200 # Sample size
+p <- 1000 # Number of predictors
+pi_0 <- 0.10 # Sparsity level (5% of predictors are active)
+
+# Pre-calculate the Cholesky factor for a Matérn correlation matrix
+L_mat <- get.L(p = p, range = 2.0, smoothness = 1.5)
+
+# Generate the data
+sim_data <- matern.data.gen(
+  seed_val = 42,
+  n = n,
+  p = p,
+  pi_0 = pi_0,
+  L = L_mat,
+  sd_beta = 4, # Standard deviation of true signals
+  SNR = 2, # Signal-to-Noise Ratio
+  n_test = n,
+  n_validation = n
+)
+
+cat("Number of active predictors:", sum(sim_data$beta != 0), "\n")
+```
+
+
+
+## 2. Fitting the Model
+
+To fit the model, we can use the `spxlvb` function directly. By default, it will automatically initialize the variational parameters using a Cross-Validated LASSO (glmnet).
+
+
+```{r}
+initials <- get.initials.spxlvb(
+  X = sim_data$X,
+  Y = sim_data$Y,
+  mu_0 = NULL,
+  omega_0 = NULL,
+  c_pi_0 = NULL,
+  d_pi_0 = NULL,
+  tau_e = NULL,
+  update_order = NULL,
+  seed = 12376
+)
+
+## Fit the Parameter Exploded Variational Bayes model
+fit <- spxlvb(
+  X = sim_data$X,
+  Y = sim_data$Y,
+  mu_0 = initials$mu_0,
+  omega_0 = initials$omega_0,
+  c_pi_0 = initials$c_pi_0,
+  d_pi_0 = initials$d_pi_0,
+  tau_e = initials$tau_e,
+  update_order = initials$update_order,
+  mu_alpha = rep(1, ncol(sim_data$X) + 1),
+  alpha_prior_precision = 1000,
+  b_prior_precision = rep(1, ncol(sim_data$X)),
+  standardize = TRUE,
+  intercept = TRUE,
+  max_iter = 1000,
+  tol = 0.001,
+  seed = 12376
+)
+```
+
+
+
+The model converges when the entropy and alpha parameters stabilize
+
+```{r}
+cat("Model converged in", fit$iterations, "iterations.\n")
+```
+
+
+
+## 3. Tuning Hyperparameters
+
+For optimal predictive calibration, you can tune the hyperparameters using either a validation set approach (grid search) or $k$-fold cross-validation.
+
+### Cross-Validation
+
+Alternatively, if an independent validation set is not available, you can use $k$-fold cross-validation to select the optimal expansion prior precision ($\alpha$) by minimizing the out-of-sample Mean Squared Error (MSE) across folds. The \code{cv.spxlvb.fit} function automates this process and returns the final model refitted on the full dataset:
+
+```{r}
+# Define search grids
+alpha_prior_precision_grid <- c(0, 5, 10, 100, 1000)
+# Perform 5-fold cross-validation
+cv_fit <- cv.spxlvb.fit(
+  k = 5,
+  X = sim_data$X,
+  Y = sim_data$Y,
+  mu_0 = initials$mu_0,
+  omega_0 = initials$omega_0,
+  c_pi_0 = initials$c_pi_0,
+  d_pi_0 = initials$d_pi_0,
+  tau_e = initials$tau_e,
+  update_order = initials$update_order,
+  mu_alpha = rep(1, ncol(sim_data$X) + 1),
+  alpha_prior_precision_grid = alpha_prior_precision_grid,
+  b_prior_precision = rep(1, ncol(sim_data$X)), # Fixed slab precision for CV
+  standardize = TRUE,
+  intercept = TRUE,
+  max_iter = 100L,
+  tol = 1e-05,
+  seed = 12376,
+  verbose = TRUE,
+  parallel = TRUE
+)
+```
+
+```{r}
+cv_fit$CVE
+```
+
+### Grid Search
+
+The \code{grid.search.spxlvb.fit} function evaluates models over a 2D grid based on the Evidence Lower Bound (ELBO) or a provided validation set.
+
+```{r}
+# Define search grids
+alpha_prior_precision_grid <- c(0, 5, 10, 100, 1000)
+b_prior_precision_grid <- c(0.1, 0.5, 1, 1.5)
+
+opt_fit <- grid.search.spxlvb.fit(
+  X = sim_data$X,
+  Y = sim_data$Y,
+  X_validation = sim_data$X_validation,
+  Y_validation = sim_data$Y_validation,
+  beta_true = NULL, # For no oracle tuning and prediction MSE instead
+  mu_0 = initials$mu_0,
+  omega_0 = initials$omega_0,
+  c_pi_0 = initials$c_pi_0,
+  d_pi_0 = initials$d_pi_0,
+  tau_e = initials$tau_e,
+  update_order = initials$update_order,
+  mu_alpha = rep(1, ncol(sim_data$X) + 1),
+  alpha_prior_precision_grid = alpha_prior_precision_grid,
+  b_prior_precision_grid = b_prior_precision_grid,
+  standardize = TRUE,
+  intercept = TRUE,
+  max_iter = 100L,
+  tol = 1e-05,
+  seed = 12376,
+  verbose = TRUE,
+  parallel = TRUE
+)
+
+opt_fit$optimal_hyper
+cat("Optimal Alpha Precision:", opt_fit$optimal_hyper[1], "\n")
+```
+
+
+
+
+
+## 4. Evaluating Results
+
+The fitted object returns the approximate posterior means (mu), the posterior inclusion probabilities (omega), and the final shrunken coefficients (beta = mu * omega).
+
+```{r}
+plot(sim_data$beta)
+```
+
+```{r}
+plot(fit$beta)
+```
+
+```{r}
+plot(opt_fit$fit_spxlvb$beta)
+```
+
+
+```{r}
+plot(cv_fit$fit_spxlvb$beta)
+```
+
+```{r}
+calculate_metrics <- function(
+  beta_hat,
+  posterior_inclusion_probability,
+  sim_data,
+  alpha = 0.1
+) {
+  # Predictions
+  eta_true_test <- sim_data$X_test %*% sim_data$beta
+  eta_hat_test <- cbind(1, sim_data$X_test) %*% beta_hat
+
+  # Estimation Error
+  mse_beta <- mean((sim_data$beta - beta_hat[-1])^2)
+  mse_eta <- mean((eta_true_test - eta_hat_test)^2)
+
+  # Selection Performance (using local false discovery rate)
+  lfdr_val <- 1 - posterior_inclusion_probability
+  lfdr_val[is.na(lfdr_val)] <- 1
+  threshold <- 0
+  if (min(lfdr_val) < alpha) {
+    threshold <- max(sort(lfdr_val)[cumsum(sort(lfdr_val)) < alpha])
+  }
+  # Then, you would select all predictors where
+  # posterior_inclusion_probability >= 1-threshold.
+
+  # Confusion matrix components
+  TP <- (posterior_inclusion_probability >= (1 - threshold)) & (sim_data$beta != 0)
+  FP <- (posterior_inclusion_probability >= 1 - threshold) & (sim_data$beta == 0)
+  FN <- (posterior_inclusion_probability < 1 - threshold) & (sim_data$beta != 0)
+
+  TPR <- sum(TP) / max(sum(TP) + sum(FN), 1)
+  FDR <- sum(FP) / max(sum(TP) + sum(FP), 1)
+
+  return(
+    list(
+      mse_beta = mse_beta,
+      mse_eta = mse_eta,
+      TPR = TPR,
+      FDR = FDR
+    )
+  )
+}
+```
+
+```{r}
+metrics_fit <- calculate_metrics(
+  beta_hat = fit$beta,
+  posterior_inclusion_probability = fit$omega, # varies per method
+  sim_data = sim_data,
+  alpha = 0.1
+)
+
+metrics_cv_fit <- calculate_metrics(
+  beta_hat = cv_fit$fit_spxlvb$beta,
+  posterior_inclusion_probability = cv_fit$fit_spxlvb$omega, # varies per method
+  sim_data = sim_data,
+  alpha = 0.1
+)
+
+metrics_opt_fit <- calculate_metrics(
+  beta_hat = opt_fit$fit_spxlvb$beta,
+  posterior_inclusion_probability = opt_fit$fit_spxlvb$omega, # varies per method
+  sim_data = sim_data,
+  alpha = 0.1
+)
+```
+
+```{r}
+metrics_df <- rbind(
+  metrics_fit,
+  metrics_cv_fit,
+  metrics_opt_fit
+)
+```
+
+
+```{r}
+metrics_df
+```
+
+```{r cleanup, include = FALSE}
+stopCluster(cl)
+```

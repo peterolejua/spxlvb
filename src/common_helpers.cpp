@@ -1,19 +1,89 @@
 // common_helpers.cpp
 #include "common_helpers.h" // Include its own header first
+#include <RcppArmadillo.h>
+#include <Rcpp.h>
+#include <cmath>
+#include <algorithm> // for std::max, std::min
 
-// Define helper functions here
-arma::vec entropy(const arma::vec &x) {
-  arma::vec ent(x.n_elem, arma::fill::zeros);
-  for (arma::uword j = 0; j < x.n_elem; ++j) {
-    // clamp values to avoid -Inf
-    if ((x(j) > 1e-10) && (x(j) < 1 - 1e-10)) {
-      ent(j) -= x(j) * std::log2(x(j)) + (1 - x(j)) * std::log2(1 - x(j));
-    }
+// -----------------------------------------------------------------------------
+// compute_elbo: Numerically Robust ELBO Calculation
+// -----------------------------------------------------------------------------
+Rcpp::List compute_elbo_cpp(
+    const arma::vec& mu,
+    const arma::vec& sigma,
+    const arma::vec& omega,
+    const arma::vec& tau_b,
+    const arma::vec& mu_alpha,
+    double Y2,
+    double t_YW,
+    double t_W2,
+    double tau_alpha,
+    double tau_e,
+    double pi_fixed
+) {
+  int p = mu.n_elem;
+
+  // double pi = arma::datum::pi;
+  // double log2pi = std::log(2.0 * pi);
+  arma::vec sigma2 = arma::square(sigma);
+  arma::vec one_minus_omega = 1.0 - omega;
+
+  arma::vec l_omega = arma::log(omega);
+  arma::vec l_omega_m1 = arma::log(1 - omega);
+
+  for (int i = 0; i < p; ++i) {
+    if (!R_finite(l_omega(i)))     l_omega(i)     = -500.0;
+    if (!R_finite(l_omega_m1(i)))  l_omega_m1(i)  = -500.0;
   }
-  return ent;
+
+  // arma::vec term_a = omega % (0.5 + 0.5*log2pi + arma::log(sigma) - l_omega);
+  arma::vec term_a = omega % (arma::log(sigma) - l_omega);
+  double sum_term_a = arma::accu(term_a);
+
+  arma::vec term_b = one_minus_omega %
+    (arma::log(arma::sqrt(tau_e * tau_b)) + l_omega_m1); //
+  double sum_term_b = -arma::accu(term_b);
+
+  arma::vec inside = omega % (arma::square(mu) + sigma2) +
+    one_minus_omega % (1.0 / (tau_e * tau_b));
+  arma::vec taub_times_inside = tau_b % inside;
+  double sum_taub_inside = arma::accu(taub_times_inside);
+
+  // arma::vec one_minus_mu_alpha = 1.0 - mu_alpha;
+  // double sum_alpha_term = tau_alpha * arma::accu(arma::square(one_minus_mu_alpha));
+
+  double resid_term = Y2 - 2.0 * t_YW + t_W2;
+
+  double bigurly = resid_term + sum_taub_inside; // + sum_alpha_term;
+  double datafit_term = -0.5 * tau_e * bigurly;
+
+  double term_norm = 0.5 * (arma::accu(arma::log(tau_e * tau_b))); // +
+  // (p + 1) * std::log(tau_e * tau_alpha));
+
+  double logodds = std::log(pi_fixed / (1.0 - pi_fixed));
+  double pi_term = logodds * arma::accu(omega);
+
+  double elbo = sum_term_a + sum_term_b + datafit_term + term_norm + pi_term;
+
+  double sum_taua = (p + 1) * std::log(tau_e * tau_alpha) / 2.0;
+  double sum_taub = arma::accu(arma::log(tau_e * tau_b)) / 2.0;
+  double SSE = tau_e * (Y2 - 2.0 * t_YW + t_W2);
+
+  return Rcpp::List::create(
+    Named("ELBO")      = elbo,
+    Named("Sum_a")     = sum_term_a,
+    Named("Sum_b")     = sum_term_b,
+    Named("Datafit")   = datafit_term,
+    Named("Resid_term")= resid_term,
+    Named("sum_taua")  = sum_taua,
+    Named("sum_taub")  = sum_taub,
+    Named("SSE")       = SSE,
+    Named("term_norm") = term_norm,
+    Named("pi_term")   = pi_term
+  );
 }
 
-double sigmoid(const double &x) {
+double sigmoid_cpp(const double &x) {
   if (x > 32.0) {
     return 1;
   } else if (x < -32.0) {
@@ -23,71 +93,52 @@ double sigmoid(const double &x) {
   }
 }
 
-arma::vec gram_diag(const arma::mat &X) {
-  arma::vec diag(X.n_cols);
-
-  for (arma::uword i = 0; i < diag.n_elem; ++i) {
-    diag(i) = std::pow(arma::norm(X.col(i)), 2);
-  }
-  return diag;
-}
-
-// Function to calculate the digamma function using R's digamma
-double r_digamma(double x) {
-  static Rcpp::Function digamma("digamma");
-  return Rcpp::as<double>(digamma(Rcpp::Named("x") = x));
-}
-
-
 // Calculates Lambda_j, Sigma_j, and eta_j
-std::tuple<mat, mat, vec> calculate_lambda_eta_sigma(
-    const mat &X,
-    const mat &XtX, // precomputed XtX
-    const rowvec &YX_vec, // precomputed XtX
-    const vec &Y,
-    const vec &W_j,
+Rcpp::List calculate_lambda_eta_sigma_update_cpp(
+    const arma::mat& X,
+    const arma::vec& X_2_col_sums,   // precomputed column sums of X^2
+    const arma::vec& YX_vec,  // precomputed t(X) %*% Y
+    const arma::vec& Y,
+    const arma::vec& W_j,
     double W_j_squared,
-    int s_j_val,
-    uword j,
+    double s_j_val,
+    unsigned int j,           // 0-based index
     double tau_e,
-    const vec &tau_b,
+    const arma::vec& tau_b,
     double tau_alpha,
-    const vec &mu_alpha
+    const arma::vec& mu_alpha
 ) {
-  double s_j = static_cast<double>(s_j_val);
-  vec X_j = X.col(j);
+  double s_j = s_j_val;
+  arma::vec X_j = X.col(j);
 
-  mat Lambda_j(2, 2);
-  // Ensure that X_j squared is finite and positive
-  double X_j_sq_val = XtX(j,j);
-  if (!arma::is_finite(X_j_sq_val) || X_j_sq_val < 0) X_j_sq_val = arma::datum::eps; // safeguard
+  arma::mat Lambda_j(2,2, fill::zeros);
 
-  Lambda_j(0, 0) = tau_e * s_j * X_j_sq_val + tau_e * tau_b(j);
-  Lambda_j(0, 1) = tau_e * s_j * dot(X_j, W_j);
-  Lambda_j(1, 0) = tau_e * s_j * dot(X_j, W_j);
-  Lambda_j(1, 1) = tau_e * W_j_squared + tau_e * tau_alpha;
+  double X_j_sq_val = X_2_col_sums(j);
+  double dot_Xj_Wj = arma::dot(X_j, W_j);
 
-  mat Sigma_j = inv(Lambda_j);
+  Lambda_j(0,0) = tau_e * s_j * X_j_sq_val + tau_e * tau_b(j);
+  Lambda_j(0,1) = tau_e * s_j * dot_Xj_Wj;
+  Lambda_j(1,0) = tau_e * s_j * dot_Xj_Wj;
+  Lambda_j(1,1) = tau_e * W_j_squared + tau_e * tau_alpha;
 
-  vec eta_j(2);
-  eta_j(0) = tau_e * YX_vec(j);
-  eta_j(1) = tau_e * dot(Y, W_j) + tau_e * tau_alpha * mu_alpha(j);
-  eta_j = Sigma_j * eta_j;
-
-  return std::make_tuple(Lambda_j, Sigma_j, eta_j);
-}
-
-// Gaussian probability density function
-double gaussian_pdf(double x, double mean, double variance) {
-  // Ensure variance is positive for sqrt
-  if (variance <= 0) {
-    return 0.0;
+  arma::mat Sigma_j(2,2);
+  bool ok = arma::inv(Sigma_j, Lambda_j);
+  if (!ok) {
+    arma::mat Lambda_j_pert = Lambda_j +
+      std::numeric_limits<double>::epsilon() * arma::eye<arma::mat>(2,2);
+    arma::inv(Sigma_j, Lambda_j_pert);
   }
-  double diff = x - mean;
-  return (1.0 / sqrt(2.0 * M_PI * variance)) * exp(-0.5 * diff * diff / variance);
+
+  arma::vec eta(2, fill::zeros);
+  eta(0) = s_j * tau_e * YX_vec(j);
+  eta(1) = tau_e * arma::dot(Y, W_j) + tau_e * tau_alpha * mu_alpha(j);
+
+  arma::vec eta_out = Sigma_j * eta;
+
+  return Rcpp::List::create(
+    Named("Lambda_j") = Lambda_j,
+    Named("Sigma_j")  = Sigma_j,
+    Named("eta_j")    = eta_out
+  );
 }
 
-// Objective function to maximize (the mixture PDF)
-double mixture_pdf(double alpha, double phi, double mean0, double var0, double mean1, double var1) {
-  return (1.0 - phi) * gaussian_pdf(alpha, mean0, var0) + phi * gaussian_pdf(alpha, mean1, var1);
-}
