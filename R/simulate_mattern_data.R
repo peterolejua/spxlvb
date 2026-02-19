@@ -6,6 +6,11 @@
 #' @param range A numeric value. Controls the distance at which correlation decays.
 #' @param smoothness A numeric value (nu). Controls differentiability (0.5, 1.5, or 2.5).
 #' @param phi A numeric value. The marginal variance. Defaults to 1.0.
+#' @return A lower-triangular matrix of dimension \eqn{p \times p}: the
+#'   Cholesky factor \eqn{L} such that the covariance matrix equals
+#'   \eqn{LL^\top}.
+#' @examples
+#' L <- get.L(p = 20, range = 2.0, smoothness = 1.5)
 #' @importFrom stats dist
 #' @export
 get.L <- function(p, range, smoothness, phi = 1.0) {
@@ -36,6 +41,14 @@ get.L <- function(p, range, smoothness, phi = 1.0) {
 #' @param SNR A numeric value. The signal-to-noise ratio.
 #' @param n_test An integer. Number of test observations.
 #' @param n_validation An integer. Number of validation observations.
+#' @return A named list with elements \code{Y}, \code{X}, \code{beta},
+#'   \code{sd_noise}, \code{range}, \code{smoothness}, \code{SNR},
+#'   \code{pi_0}, and \code{active_indices}. If \code{n_test} or
+#'   \code{n_validation} are provided, the list also contains \code{X_test},
+#'   \code{Y_test}, \code{X_validation}, and \code{Y_validation}.
+#' @examples
+#' L <- get.L(p = 20, range = 2.0, smoothness = 1.5)
+#' dat <- matern.data.gen(seed_val = 1, n = 20, p = 20, pi_0 = 0.1, L = L)
 #' @importFrom stats rnorm var
 #' @export
 matern.data.gen <- function(

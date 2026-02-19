@@ -2,11 +2,7 @@
 #define COMMON_HELPERS_H
 
 #include <RcppArmadillo.h>
-#include <Rcpp.h>
 #include <tuple>
-
-using namespace arma;
-using namespace Rcpp;
 
 // Function declaration for compute_elbo()
 Rcpp::List compute_elbo_cpp(

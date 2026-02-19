@@ -15,8 +15,16 @@ get.L(p, range, smoothness, phi = 1)
 
 \item{phi}{A numeric value. The marginal variance. Defaults to 1.0.}
 }
+\value{
+A lower-triangular matrix of dimension \eqn{p \times p}: the
+Cholesky factor \eqn{L} such that the covariance matrix equals
+\eqn{LL^\top}.
+}
 \description{
 Pre-computes the Lower Cholesky factor (L) for a 1D Matern
 covariance matrix. This should be called once per simulation setting to
 save computational time.
+}
+\examples{
+L <- get.L(p = 20, range = 2.0, smoothness = 1.5)
 }

@@ -36,7 +36,8 @@ get.initials.spxlvb(
 \item{seed}{Seed for reproducibility.}
 }
 \value{
-A list of initialized parameters.
+A named list with elements \code{mu_0}, \code{omega_0},
+\code{c_pi_0}, \code{d_pi_0}, \code{tau_e}, and \code{update_order}.
 }
 \description{
 This function initializes parameters for the spxlvb model.
@@ -47,4 +48,12 @@ Generate Initial Values for Variational Inference in Sparse Regression
 This helper function estimates initial values for variational parameters such as
 regression coefficients (\code{mu}), spike probabilities (\code{omega}), and hyperparameters
 like \code{tau_e}, \code{c_pi}, and \code{d_pi} using LASSO and Ridge regression fits.
+}
+\examples{
+\donttest{
+set.seed(1)
+X <- matrix(rnorm(30 * 20), 30, 20)
+Y <- rnorm(30)
+init <- get.initials.spxlvb(X = X, Y = Y)
+}
 }

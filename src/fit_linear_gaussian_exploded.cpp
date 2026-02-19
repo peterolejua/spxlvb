@@ -1,11 +1,12 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 
 #include <RcppArmadillo.h>
-#include <Rcpp.h>
 #include <cmath>
 #include <vector>
 
 #include "common_helpers.h"
+
+using namespace arma;
 
 // [[Rcpp::export]]
 Rcpp::List run_vb_updates_cpp(
@@ -258,16 +259,16 @@ Rcpp::List run_vb_updates_cpp(
 
   // Build the result list
   Rcpp::List result = Rcpp::List::create(
-    Named("converged") = converged,
-    Named("iterations") = last_iter + 1,
-    Named("convergence_criterion") = conv_hist.back(),
-    Named("convergence_history") = conv_vec,
-    Named("elbo_history") = elbo_vec,
-    Named("mu") = mu,
-    Named("omega") = omega,
-    Named("sigma") = sigma,
-    Named("tau_b") = tau_b,
-    Named("mu_alpha") = mu_alpha
+    Rcpp::Named("converged") = converged,
+    Rcpp::Named("iterations") = last_iter + 1,
+    Rcpp::Named("convergence_criterion") = conv_hist.back(),
+    Rcpp::Named("convergence_history") = conv_vec,
+    Rcpp::Named("elbo_history") = elbo_vec,
+    Rcpp::Named("mu") = mu,
+    Rcpp::Named("omega") = omega,
+    Rcpp::Named("sigma") = sigma,
+    Rcpp::Named("tau_b") = tau_b,
+    Rcpp::Named("mu_alpha") = mu_alpha
   );
 
   // Append per-iteration history matrices only if requested

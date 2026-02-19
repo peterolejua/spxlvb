@@ -15,7 +15,15 @@
 #' @param tau_e Initial tau_e.
 #' @param update_order Initial update order.
 #' @param seed Seed for reproducibility.
-#' @return A list of initialized parameters.
+#' @return A named list with elements \code{mu_0}, \code{omega_0},
+#'   \code{c_pi_0}, \code{d_pi_0}, \code{tau_e}, and \code{update_order}.
+#' @examples
+#' \donttest{
+#' set.seed(1)
+#' X <- matrix(rnorm(30 * 20), 30, 20)
+#' Y <- rnorm(30)
+#' init <- get.initials.spxlvb(X = X, Y = Y)
+#' }
 #' @importFrom glmnet cv.glmnet
 #' @importFrom stats predict coef
 #' @export
@@ -35,11 +43,13 @@ get.initials.spxlvb <- function(
   ### dimensions ----
   p <- ncol(X)
 
+  lasso_cv <- NULL
+
   if (any(c(is.null(tau_e), is.null(c_pi_0), is.null(d_pi_0), is.null(omega_0)))) {
     lasso_cv <- glmnet::cv.glmnet(
       X,
       Y,
-      alpha = 1, # lasso
+      alpha = 1,
       family = "gaussian",
       standardize = FALSE,
       standardize.response = FALSE,
@@ -53,13 +63,8 @@ get.initials.spxlvb <- function(
       type = "nonzero"
     )$lambda.min
 
-    # nz_ind_lambda.1se <-predict(
-    #   lasso_cv, s = "lambda.1se", type = "nonzero"
-    # )$lambda.1se
-
     nz_min <- min(
       length(nz_ind_lambda.min),
-      # length(nz_ind_lambda.1se),
       length(Y) - 2
     )
 
@@ -81,17 +86,14 @@ get.initials.spxlvb <- function(
 
     if (is.null(omega_0)) {
       omega_0 <- rep(s_hat / p, p)
-      # Ensure nz_ind_lambda.min is not empty and contains valid indices
       if (length(nz_ind_lambda.min) > 0) {
-        # glmnet returns 1-based indexing for non-zero coefficients
         omega_0[nz_ind_lambda.min] <- 1 - s_hat / p
       }
     }
   }
 
   if (is.null(mu_0)) {
-    # Fit lasso only if it wasn't already done in the block above
-    if (!exists("lasso_cv")) {
+    if (is.null(lasso_cv)) {
       lasso_cv <- glmnet::cv.glmnet(
         X, Y,
         alpha = 1, family = "gaussian",

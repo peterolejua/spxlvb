@@ -81,6 +81,16 @@ This function orchestrates the cross-validation process and the final model fit.
 It first identifies initial values for the full dataset, uses \code{cv.spxlvb} to find
 the optimal hyperparameter, and finally fits the model to the complete dataset.
 }
+\examples{
+\donttest{
+set.seed(1)
+n <- 50; p <- 20
+X <- matrix(rnorm(n * p), n, p)
+Y <- X[, 1:3] \%*\% c(1, -1, 0.5) + rnorm(n)
+fit <- cv.spxlvb.fit(k = 3, X = X, Y = Y,
+  alpha_prior_precision_grid = c(100, 1000), parallel = FALSE)
+}
+}
 \seealso{
 \code{\link{cv.spxlvb}}, \code{\link{spxlvb}}
 }

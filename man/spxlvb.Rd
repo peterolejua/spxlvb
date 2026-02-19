@@ -72,8 +72,11 @@ This function acts as a wrapper for various C++ implementations of the SPXLVB al
 It handles initial parameter setup and dynamically dispatches to the chosen C++ version.
 }
 \examples{
-\dontrun{
-# Example usage (assuming X and Y are defined)
-# result <- spxlvb(X = my_X, Y = my_Y)
+\donttest{
+set.seed(1)
+n <- 50; p <- 20
+X <- matrix(rnorm(n * p), n, p)
+Y <- X[, 1:3] \%*\% c(1, -1, 0.5) + rnorm(n)
+fit <- spxlvb(X = X, Y = Y, max_iter = 50)
 }
 }

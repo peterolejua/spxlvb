@@ -1,9 +1,10 @@
 // common_helpers.cpp
-#include "common_helpers.h" // Include its own header first
+#include "common_helpers.h"
 #include <RcppArmadillo.h>
-#include <Rcpp.h>
 #include <cmath>
-#include <algorithm> // for std::max, std::min
+#include <algorithm>
+
+using namespace arma;
 
 // -----------------------------------------------------------------------------
 // compute_elbo: Numerically Robust ELBO Calculation
@@ -70,16 +71,16 @@ Rcpp::List compute_elbo_cpp(
   double SSE = tau_e * (Y2 - 2.0 * t_YW + t_W2);
 
   return Rcpp::List::create(
-    Named("ELBO")      = elbo,
-    Named("Sum_a")     = sum_term_a,
-    Named("Sum_b")     = sum_term_b,
-    Named("Datafit")   = datafit_term,
-    Named("Resid_term")= resid_term,
-    Named("sum_taua")  = sum_taua,
-    Named("sum_taub")  = sum_taub,
-    Named("SSE")       = SSE,
-    Named("term_norm") = term_norm,
-    Named("pi_term")   = pi_term
+    Rcpp::Named("ELBO")      = elbo,
+    Rcpp::Named("Sum_a")     = sum_term_a,
+    Rcpp::Named("Sum_b")     = sum_term_b,
+    Rcpp::Named("Datafit")   = datafit_term,
+    Rcpp::Named("Resid_term")= resid_term,
+    Rcpp::Named("sum_taua")  = sum_taua,
+    Rcpp::Named("sum_taub")  = sum_taub,
+    Rcpp::Named("SSE")       = SSE,
+    Rcpp::Named("term_norm") = term_norm,
+    Rcpp::Named("pi_term")   = pi_term
   );
 }
 
@@ -136,9 +137,9 @@ Rcpp::List calculate_lambda_eta_sigma_update_cpp(
   arma::vec eta_out = Sigma_j * eta;
 
   return Rcpp::List::create(
-    Named("Lambda_j") = Lambda_j,
-    Named("Sigma_j")  = Sigma_j,
-    Named("eta_j")    = eta_out
+    Rcpp::Named("Lambda_j") = Lambda_j,
+    Rcpp::Named("Sigma_j")  = Sigma_j,
+    Rcpp::Named("eta_j")    = eta_out
   );
 }
 
