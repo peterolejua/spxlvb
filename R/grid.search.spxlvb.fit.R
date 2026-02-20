@@ -22,7 +22,22 @@
 #' @param seed Seed for reproducibility.
 #' @param verbose Logical, if TRUE, prints progress.
 #' @param parallel Logical, if TRUE, search in parallel.
-#' @return A list containing the grid search results, optimal hyperparameters, and the final model.
+#' @return A list with elements \code{hyper_grid} (data frame of all grid
+#'   combinations and their metrics), \code{optimal_hyper} (the selected
+#'   hyperparameter values), \code{fit_spxlvb} (the final fitted model),
+#'   \code{selection_criterion} (the criterion used), and
+#'   \code{refitted_on_combined} (logical).
+#' @examples
+#' \donttest{
+#' set.seed(1)
+#' n <- 50; p <- 20
+#' X <- matrix(rnorm(n * p), n, p)
+#' Y <- X[, 1:3] %*% c(1, -1, 0.5) + rnorm(n)
+#' result <- grid.search.spxlvb.fit(X = X, Y = Y,
+#'   alpha_prior_precision_grid = c(100, 1000),
+#'   b_prior_precision_grid = c(1, 5),
+#'   parallel = FALSE)
+#' }
 #' @importFrom foreach foreach %do% %dopar%
 #' @export
 grid.search.spxlvb.fit <- function(

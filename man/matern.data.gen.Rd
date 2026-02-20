@@ -35,7 +35,18 @@ matern.data.gen(
 
 \item{n_validation}{An integer. Number of validation observations.}
 }
+\value{
+A named list with elements \code{Y}, \code{X}, \code{beta},
+\code{sd_noise}, \code{range}, \code{smoothness}, \code{SNR},
+\code{pi_0}, and \code{active_indices}. If \code{n_test} or
+\code{n_validation} are provided, the list also contains \code{X_test},
+\code{Y_test}, \code{X_validation}, and \code{Y_validation}.
+}
 \description{
 This function generates a synthetic dataset where the predictors (X)
 follow a spatial correlation structure defined by a pre-computed L matrix.
+}
+\examples{
+L <- get.L(p = 20, range = 2.0, smoothness = 1.5)
+dat <- matern.data.gen(seed_val = 1, n = 20, p = 20, pi_0 = 0.1, L = L)
 }

@@ -1,11 +1,16 @@
 Package: spxlvb
 Type: Package
-Title: Parameter Exploded Variational Bayes for Linear Regression with High-dimensional Variable Selection and Spike-and-slab Priors
+Title: Parameter Exploded Variational Bayes for Linear Regression with
+    High-Dimensional Variable Selection and Spike-and-Slab Priors
 Version: 0.1.0
 Authors@R: c(
     person("Peter", "Olejua", , "polejua@email.sc.edu", role = c("aut", "cre")),
     person("Alexander", "Mclain", , "mclaina@mailbox.sc.edu", role = c("aut")))
-Description: This package implements a Parameter Exploded Variational Bayes for Linear Regression with High-dimensional Variable Selection and Spike-and-slab Priors.
+Description: Implements parameter exploded variational Bayes (SPXLVB) for
+    sparse linear regression with spike-and-slab priors. A coordinate-ascent
+    variational inference algorithm with a parameter explosion step that
+    rescales variational parameters at each coordinate update, improving
+    convergence over standard mean-field updates.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

@@ -84,3 +84,13 @@ folds and hyperparameter grid into a single parallelizable task list.
 To use parallel processing, a backend must be registered before calling
 this function. For example: \code{doParallel::registerDoParallel(cores = 4)}.
 }
+\examples{
+\donttest{
+set.seed(1)
+n <- 50; p <- 20
+X <- matrix(rnorm(n * p), n, p)
+Y <- X[, 1:3] \%*\% c(1, -1, 0.5) + rnorm(n)
+result <- cv.spxlvb(k = 3, X = X, Y = Y,
+  alpha_prior_precision_grid = c(100, 1000), parallel = FALSE)
+}
+}

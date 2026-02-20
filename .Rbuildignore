@@ -8,3 +8,6 @@
 ^cran-comments\.md$
 ^WORDLIST$
 ^github-update\.txt$
+^\.claude$
+^CLAUDE\.md$
+^src/\.Rhistory$
