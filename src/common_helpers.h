@@ -2,9 +2,12 @@
 #define COMMON_HELPERS_H
 
 #include <RcppArmadillo.h>
-#include <tuple>
 
-// Function declaration for compute_elbo()
+struct VBUpdate2x2 {
+  double L00, L01, L11;
+  double eta0, eta1;
+};
+
 Rcpp::List compute_elbo_cpp(
     const arma::vec& mu,
     const arma::vec& sigma,
@@ -19,24 +22,19 @@ Rcpp::List compute_elbo_cpp(
     double pi_fixed
 );
 
-
-// Function declaration for sigmoid()
 double sigmoid_cpp(const double &x);
 
-// Function declaration for calculate_lambda_eta_sigma()
-Rcpp::List calculate_lambda_eta_sigma_update_cpp(
-    const arma::mat& X,
-    const arma::vec& X_2_col_sums,   // precomputed column sums of X^2
-    const arma::vec& YX_vec,  // precomputed t(X) %*% Y
-    const arma::vec& Y,
-    const arma::vec& W_j,
+VBUpdate2x2 compute_vb_update_2x2(
+    double X_j_sq,
+    double dot_Xj_Wj,
+    double YXj,
+    double dot_Y_Wj,
     double W_j_squared,
-    double s_j_val,
-    unsigned int j,           // 0-based index
+    double s_j,
     double tau_e,
-    const arma::vec& tau_b,
+    double tau_b_j,
     double tau_alpha,
-    const arma::vec& mu_alpha
+    double mu_alpha_j
 );
 
 #endif // COMMON_HELPERS_H
