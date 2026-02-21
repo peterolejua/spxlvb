@@ -23,7 +23,10 @@ Rcpp::List run_vb_updates_cpp(
     arma::vec tau_b,
     int max_iter,
     double tol,
-    bool save_history = true
+    bool save_history = true,
+    bool use_elbo = true,
+    bool update_pi = false,
+    bool use_global_alpha = true
 ) {
   int n = X.n_rows;
   int p = X.n_cols;
@@ -62,6 +65,7 @@ Rcpp::List run_vb_updates_cpp(
 
   bool converged = false;
   int last_iter = 0;
+  double prev_elbo = R_NegInf;
   for (int iter = 0; iter < max_iter; ++iter) {
     Rcpp::checkUserInterrupt();
 
@@ -154,24 +158,31 @@ Rcpp::List run_vb_updates_cpp(
                 X_2_col_sums(j) * coeff;
     }
 
+    if (update_pi) {
+      pi_fixed = (c_pi + arma::accu(omega)) / (c_pi + d_pi + p);
+      E_logit_pi = std::log(pi_fixed) - std::log(1.0 - pi_fixed);
+    }
+
     double t_YW = arma::dot(W, Y);
     double t_W2 = var_W + arma::dot(W, W);
 
     int idx_p1 = p;
-    double optimal_alpha_p1 = (t_YW + tau_alpha * mu_alpha(idx_p1)) /
-                              (t_W2 + tau_alpha);
-    alpha_j_optimal(idx_p1) = optimal_alpha_p1;
+    if (use_global_alpha) {
+      double optimal_alpha_p1 = (t_YW + tau_alpha * mu_alpha(idx_p1)) /
+                                (t_W2 + tau_alpha);
+      alpha_j_optimal(idx_p1) = optimal_alpha_p1;
 
-    mu        *= optimal_alpha_p1;
-    sigma     *= std::fabs(optimal_alpha_p1);
-    tau_b     /= (optimal_alpha_p1 * optimal_alpha_p1);
-    mu_alpha(idx_p1) = 1.0 - (optimal_alpha_p1 - mu_alpha(idx_p1));
+      mu        *= optimal_alpha_p1;
+      sigma     *= std::fabs(optimal_alpha_p1);
+      tau_b     /= (optimal_alpha_p1 * optimal_alpha_p1);
+      mu_alpha(idx_p1) = 1.0 - (optimal_alpha_p1 - mu_alpha(idx_p1));
 
-    W         *= optimal_alpha_p1;
-    var_W     *= optimal_alpha_p1 * optimal_alpha_p1;
+      W         *= optimal_alpha_p1;
+      var_W     *= optimal_alpha_p1 * optimal_alpha_p1;
 
-    t_YW = arma::dot(W, Y);
-    t_W2 = var_W + arma::dot(W, W);
+      t_YW = arma::dot(W, Y);
+      t_W2 = var_W + arma::dot(W, W);
+    }
 
     double convg2 = 1.0;
 
@@ -203,9 +214,23 @@ Rcpp::List run_vb_updates_cpp(
     elbo_hist.push_back(current_elbo);
 
     last_iter = iter;
-    if (convg2 < tol) {
-      converged = true;
-      break;
+
+    if (use_elbo) {
+      if (iter > 0) {
+        double rel_change = std::fabs(current_elbo - prev_elbo) /
+                            (std::fabs(prev_elbo) + 1e-10);
+        if (rel_change < tol) {
+          converged = true;
+          prev_elbo = current_elbo;
+          break;
+        }
+      }
+      prev_elbo = current_elbo;
+    } else {
+      if (convg2 < tol) {
+        converged = true;
+        break;
+      }
     }
   }
 

@@ -17,6 +17,9 @@
 #' @param max_iter Maximum number of iterations for the variational update. Default is 1000.
 #' @param tol Convergence threshold for entropy and alpha change. Default is 1e-5.
 #' @param save_history Logical. If TRUE (default), per-iteration parameter histories are stored and returned. Set to FALSE to save memory in large-scale simulations.
+#' @param use_elbo Logical. If TRUE (default), convergence is based on relative ELBO change. If FALSE, uses chi-squared test on normalized linear predictor changes.
+#' @param update_pi Logical. If TRUE, the spike probability pi is updated via its Beta posterior at each iteration. Default is FALSE (fixed at prior mean).
+#' @param use_global_alpha Logical. If TRUE (default), a global alpha_{p+1} rescaling step is applied after each coordinate sweep.
 #' @param seed Integer seed for cross-validation in glmnet. Default is 12376.
 #' @return A list with posterior summaries including estimated coefficients (`mu`),
 #' inclusion probabilities (`omega`), intercept (if applicable), alpha path, convergence status, etc.
@@ -52,6 +55,9 @@ spxlvb <- function(
   max_iter = 1000,
   tol = 1e-3,
   save_history = TRUE,
+  use_elbo = TRUE,
+  update_pi = FALSE,
+  use_global_alpha = TRUE,
   seed = 12376 # seed for cv.glmnet initials
 ) {
   # intercept requires standardize to compute means
@@ -107,7 +113,10 @@ spxlvb <- function(
     b_prior_precision / tau_e, # = tau_b (vector)
     max_iter,
     tol,
-    save_history
+    save_history,
+    use_elbo,
+    update_pi,
+    use_global_alpha
   )
   fn <- "run_vb_updates_cpp"
 
