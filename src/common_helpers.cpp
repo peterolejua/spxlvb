@@ -44,7 +44,8 @@ Rcpp::List compute_elbo_cpp(
 
   double resid_term = Y2 - 2.0 * t_YW + t_W2;
 
-  double bigurly = resid_term + sum_taub_inside;
+  double alpha_penalty = tau_alpha * arma::accu(arma::square(1.0 - mu_alpha));
+  double bigurly = resid_term + sum_taub_inside + alpha_penalty;
   double datafit_term = -0.5 * tau_e * bigurly;
 
   double term_norm = 0.5 * (arma::accu(arma::log(tau_e * tau_b)));
