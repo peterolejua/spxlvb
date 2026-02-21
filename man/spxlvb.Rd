@@ -64,7 +64,7 @@ spxlvb(
 
 \item{update_pi}{Logical. If TRUE, the spike probability pi is updated via its Beta posterior at each iteration. Default is FALSE (fixed at prior mean).}
 
-\item{use_global_alpha}{Logical. If TRUE (default), a global alpha_{p+1} rescaling step is applied after each coordinate sweep.}
+\item{use_global_alpha}{Logical. If TRUE (default), a global \eqn{\alpha_{p+1}} rescaling step is applied after each coordinate sweep.}
 
 \item{seed}{Integer seed for cross-validation in glmnet. Default is 12376.}
 }

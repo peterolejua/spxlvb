@@ -12,6 +12,8 @@ Description: Implements parameter exploded variational Bayes (SPXLVB) for
     rescales variational parameters at each coordinate update, improving
     convergence over standard mean-field updates.
 License: MIT + file LICENSE
+URL: https://github.com/peterolejua/spxlvb
+BugReports: https://github.com/peterolejua/spxlvb/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
