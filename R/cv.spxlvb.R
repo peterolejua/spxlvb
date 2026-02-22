@@ -1,9 +1,10 @@
 #' @title Cross-validation for Sparse Parameter Exploded Variational Bayes (spxlvb)
 #'
 #' @description Performs k-fold cross-validation for the \code{spxlvb} model to
-#'   optimize the \code{alpha_prior_precision} hyperparameter. This implementation
-#'   is optimized for high-performance computing by flattening the cross-validation
-#'   folds and hyperparameter grid into a single parallelizable task list.
+#'   optimize hyperparameters. By default, only
+#'   \code{alpha_prior_precision} is searched (1D CV). When
+#'   \code{b_prior_precision_grid} is supplied, a joint 2D search over both
+#'   \code{alpha_prior_precision} and \code{b_prior_precision} is performed.
 #'
 #' @param k Integer, the number of folds for cross-validation. Must be at least 3.
 #' @param X A numeric design matrix of dimension \eqn{n \times p}.
@@ -17,9 +18,17 @@
 #' @param mu_alpha Optional numeric vector of length \eqn{p+1}. Prior means for the expansion parameters.
 #' @param alpha_prior_precision_grid A numeric vector of values to cross-validate over.
 #'   Defaults to \code{c(0, 10^(3:7))}.
+#' @param b_prior_precision_grid Optional numeric vector of scalar slab prior
+#'   precisions to cross-validate over. When \code{NULL} (default), the scalar
+#'   \code{b_prior_precision} is used for every fit (1D search over
+#'   \code{alpha_prior_precision} only). When non-\code{NULL}, a 2D grid
+#'   search is performed over all combinations of
+#'   \code{alpha_prior_precision_grid} and \code{b_prior_precision_grid}.
+#'   Each grid value is expanded to a constant vector of length \eqn{p}.
 #' @param b_prior_precision Numeric vector of length \eqn{p}.
 #'   Coordinate-specific slab prior precisions
-#'   (see \code{\link{spxlvb}} for details).
+#'   (see \code{\link{spxlvb}} for details). Used only when
+#'   \code{b_prior_precision_grid} is \code{NULL}.
 #'   Defaults to a vector of ones of length \eqn{p} (determined
 #'   automatically from \code{X}).
 #' @param standardize Logical. Should the design matrix be standardized? Defaults to TRUE.
@@ -32,10 +41,16 @@
 #'   currently registered backend (e.g., via \code{doParallel}).
 #'
 #' @return A list containing:
-#' \item{ordered_alpha_prior_precision_grid}{The sorted hyperparameter grid used.}
-#' \item{epe_test_k}{A matrix of prediction errors for each fold and grid point.}
-#' \item{CVE}{Mean Cross-Validation Error for each grid point.}
-#' \item{alpha_prior_precision_grid_opt}{The value from the grid that minimized the CVE.}
+#' \item{ordered_alpha_prior_precision_grid}{The sorted alpha hyperparameter grid.}
+#' \item{ordered_b_prior_precision_grid}{The sorted b hyperparameter grid
+#'   (only present when \code{b_prior_precision_grid} is non-\code{NULL}).}
+#' \item{epe_test_k}{Prediction errors per fold. A matrix (folds x alpha grid)
+#'   for 1D search, or a 3D array (folds x alpha grid x b grid) for 2D search.}
+#' \item{CVE}{Mean CVE. A named vector for 1D search, or a matrix
+#'   (alpha grid x b grid) for 2D search.}
+#' \item{alpha_prior_precision_grid_opt}{Optimal alpha value.}
+#' \item{b_prior_precision_grid_opt}{Optimal b value
+#'   (only present when \code{b_prior_precision_grid} is non-\code{NULL}).}
 #'
 #' @details To use parallel processing, a backend must be registered before calling
 #' this function. For example: \code{doParallel::registerDoParallel(cores = 4)}.
@@ -66,6 +81,7 @@ cv.spxlvb <- function(
   update_order = NULL,
   mu_alpha = NULL,
   alpha_prior_precision_grid = c(0, 10^(3:7)),
+  b_prior_precision_grid = NULL,
   b_prior_precision = rep(1, ncol(X)),
   standardize = TRUE,
   intercept = TRUE,
@@ -75,32 +91,42 @@ cv.spxlvb <- function(
   verbose = TRUE,
   parallel = TRUE
 ) {
-  # Fix R CMD check notes for global variables used in foreach
   idx <- NULL
 
-  # 1. Validation and Setup
   if (k < 3) stop("The number of folds 'k' must be at least 3.")
   if (length(alpha_prior_precision_grid) < 2) {
     stop("alpha_prior_precision_grid must contain at least two values for cross-validation.")
+  }
+
+  is_2d <- !is.null(b_prior_precision_grid)
+  if (is_2d && length(b_prior_precision_grid) < 2) {
+    stop("b_prior_precision_grid must contain at least two values for cross-validation.")
   }
 
   set.seed(seed)
   p <- ncol(X)
 
   if (is.null(mu_alpha)) mu_alpha <- rep(1, p + 1)
-  ordered_grid <- sort(alpha_prior_precision_grid)
+  ordered_alpha_grid <- sort(alpha_prior_precision_grid)
+  ordered_b_grid <- if (is_2d) sort(b_prior_precision_grid) else NULL
 
-  # 2. Data Partitioning
   fold_indices <- caret::createFolds(Y, k = k, list = TRUE)
 
-  # Flattening the grid for maximum parallel throughput
-  task_grid <- expand.grid(
-    fold_id = seq_len(k),
-    alpha_val = ordered_grid,
-    stringsAsFactors = FALSE
-  )
+  if (is_2d) {
+    task_grid <- expand.grid(
+      fold_id = seq_len(k),
+      alpha_val = ordered_alpha_grid,
+      b_val = ordered_b_grid,
+      stringsAsFactors = FALSE
+    )
+  } else {
+    task_grid <- expand.grid(
+      fold_id = seq_len(k),
+      alpha_val = ordered_alpha_grid,
+      stringsAsFactors = FALSE
+    )
+  }
 
-  # 3. Parallel Logic Check
   if (parallel && !foreach::getDoParRegistered()) {
     if (verbose) {
       warning("Parallel execution requested but no parallel backend is registered. Falling back to sequential.")
@@ -113,11 +139,13 @@ cv.spxlvb <- function(
   if (verbose) {
     message(sprintf(
       "Starting CV: %d folds x %d grid points = %d total fits.",
-      k, length(ordered_grid), nrow(task_grid)
+      k,
+      if (is_2d) length(ordered_alpha_grid) * length(ordered_b_grid)
+      else length(ordered_alpha_grid),
+      nrow(task_grid)
     ))
   }
 
-  # 4. Execution
   all_results <- foreach::foreach(
     idx = seq_len(nrow(task_grid)),
     .combine = "c",
@@ -126,6 +154,8 @@ cv.spxlvb <- function(
     current_task <- task_grid[idx, ]
     train_idx <- unlist(fold_indices[-current_task$fold_id])
     test_idx <- unlist(fold_indices[current_task$fold_id])
+
+    b_prec <- if (is_2d) rep(current_task$b_val, p) else b_prior_precision
 
     fit <- tryCatch(
       {
@@ -140,7 +170,7 @@ cv.spxlvb <- function(
           update_order = update_order,
           mu_alpha = mu_alpha,
           alpha_prior_precision = current_task$alpha_val,
-          b_prior_precision = b_prior_precision,
+          b_prior_precision = b_prec,
           standardize = standardize,
           intercept = intercept,
           max_iter = max_iter,
@@ -160,47 +190,79 @@ cv.spxlvb <- function(
       } else {
         X_test_mat %*% fit$beta
       }
-      # mean is a base function, no stats:: prefix needed
       return(mean((Y[test_idx] - y_pred)^2, na.rm = TRUE))
     }
   }
 
-  # 5. Result Reconstruction
-  epe_test_k <- matrix(
-    all_results,
-    nrow = k,
-    ncol = length(ordered_grid),
-    dimnames = list(paste0("Fold", seq_len(k)), as.character(ordered_grid))
-  )
+  if (is_2d) {
+    n_alpha <- length(ordered_alpha_grid)
+    n_b <- length(ordered_b_grid)
+    epe_test_k <- array(
+      all_results,
+      dim = c(k, n_alpha, n_b),
+      dimnames = list(
+        paste0("Fold", seq_len(k)),
+        as.character(ordered_alpha_grid),
+        as.character(ordered_b_grid)
+      )
+    )
+    CVE <- apply(epe_test_k, c(2, 3), mean, na.rm = TRUE)
+    opt_idx <- which(CVE == min(CVE, na.rm = TRUE), arr.ind = TRUE)[1, ]
 
-  CVE <- colMeans(epe_test_k, na.rm = TRUE)
-  opt_idx <- which.min(CVE)
+    if (length(opt_idx) == 0) {
+      stop("Cross-validation failed to produce valid MSE results. Check model convergence.")
+    }
 
-  if (length(opt_idx) == 0) {
-    stop("Cross-validation failed to produce valid MSE results. Check model convergence.")
+    list(
+      ordered_alpha_prior_precision_grid = ordered_alpha_grid,
+      ordered_b_prior_precision_grid = ordered_b_grid,
+      epe_test_k = epe_test_k,
+      CVE = CVE,
+      alpha_prior_precision_grid_opt = ordered_alpha_grid[opt_idx[1]],
+      b_prior_precision_grid_opt = ordered_b_grid[opt_idx[2]]
+    )
+  } else {
+    epe_test_k <- matrix(
+      all_results,
+      nrow = k,
+      ncol = length(ordered_alpha_grid),
+      dimnames = list(
+        paste0("Fold", seq_len(k)),
+        as.character(ordered_alpha_grid)
+      )
+    )
+    CVE <- colMeans(epe_test_k, na.rm = TRUE)
+    opt_idx <- which.min(CVE)
+
+    if (length(opt_idx) == 0) {
+      stop("Cross-validation failed to produce valid MSE results. Check model convergence.")
+    }
+
+    list(
+      ordered_alpha_prior_precision_grid = ordered_alpha_grid,
+      epe_test_k = epe_test_k,
+      CVE = CVE,
+      alpha_prior_precision_grid_opt = ordered_alpha_grid[opt_idx]
+    )
   }
-
-  list(
-    ordered_alpha_prior_precision_grid = ordered_grid,
-    epe_test_k = epe_test_k,
-    CVE = CVE,
-    alpha_prior_precision_grid_opt = ordered_grid[opt_idx]
-  )
 }
 
 #' @title Cross-validation and Final Model Fitting for spxlvb
 #'
 #' @description Performs k-fold cross-validation to determine the optimal
-#'   \code{alpha_prior_precision} and then fits a final \code{spxlvb} model
-#'   to the full dataset using the identified optimal hyperparameter.
+#'   hyperparameters and then fits a final \code{spxlvb} model to the full
+#'   dataset. When \code{b_prior_precision_grid} is supplied, a joint 2D
+#'   search over both \code{alpha_prior_precision} and
+#'   \code{b_prior_precision} is performed.
 #'
 #' @inheritParams cv.spxlvb
-#' @return The final fitted \code{spxlvb} model object based on the full dataset.
-#'   If the final fit fails, the cross-validation results are returned with a warning.
+#' @return A list containing the cross-validation results and the final
+#'   fitted \code{spxlvb} model (\code{fit_spxlvb}). If the final fit
+#'   fails, only the CV results are returned with a warning.
 #'
 #' @details This function orchestrates the cross-validation process and the final model fit.
 #'   It first identifies initial values for the full dataset, uses \code{cv.spxlvb} to find
-#'   the optimal hyperparameter, and finally fits the model to the complete dataset.
+#'   the optimal hyperparameters, and finally fits the model to the complete dataset.
 #'
 #' @examples
 #' \donttest{
@@ -226,6 +288,7 @@ cv.spxlvb.fit <- function(
   update_order = NULL,
   mu_alpha = NULL,
   alpha_prior_precision_grid = c(0, 10^(3:7)),
+  b_prior_precision_grid = NULL,
   b_prior_precision = rep(1, ncol(X)),
   standardize = TRUE,
   intercept = TRUE,
@@ -236,13 +299,13 @@ cv.spxlvb.fit <- function(
   parallel = TRUE
 ) {
   set.seed(seed)
+  p <- ncol(X)
+  is_2d <- !is.null(b_prior_precision_grid)
 
-  # Standardize data before generating initials
   std <- standardize_data(X, Y, standardize)
   X_cs <- std$X_cs
   Y_c <- std$Y_c
 
-  # 1. Generate initials based on the correctly scaled full dataset
   initials <- get.initials.spxlvb(
     X = X_cs,
     Y = Y_c,
@@ -255,11 +318,10 @@ cv.spxlvb.fit <- function(
     seed = seed
   )
 
-  # 2. Perform cross-validation to find the optimal hyperparameter
   cv_results <- cv.spxlvb(
     k = k,
-    X = X, # Pass raw X, as spxlvb will internally scale the folds
-    Y = Y, # Pass raw Y
+    X = X,
+    Y = Y,
     mu_0 = initials$mu_0,
     omega_0 = initials$omega_0,
     c_pi_0 = initials$c_pi_0,
@@ -268,6 +330,7 @@ cv.spxlvb.fit <- function(
     update_order = initials$update_order,
     mu_alpha = mu_alpha,
     alpha_prior_precision_grid = alpha_prior_precision_grid,
+    b_prior_precision_grid = b_prior_precision_grid,
     b_prior_precision = b_prior_precision,
     standardize = standardize,
     intercept = intercept,
@@ -278,12 +341,24 @@ cv.spxlvb.fit <- function(
     parallel = parallel
   )
 
-  # 3. Fit final model on the complete dataset using optimal hyperparameter
   if (verbose) {
-    message(paste(
-      "Fitting final model with optimal alpha_prior_precision:",
+    msg <- sprintf(
+      "Fitting final model with optimal alpha_prior_precision: %g",
       cv_results$alpha_prior_precision_grid_opt
-    ))
+    )
+    if (is_2d) {
+      msg <- sprintf(
+        "%s, b_prior_precision: %g",
+        msg, cv_results$b_prior_precision_grid_opt
+      )
+    }
+    message(msg)
+  }
+
+  b_prec_final <- if (is_2d) {
+    rep(cv_results$b_prior_precision_grid_opt, p)
+  } else {
+    b_prior_precision
   }
 
   fit_spxlvb <- tryCatch(
@@ -299,7 +374,7 @@ cv.spxlvb.fit <- function(
         update_order = initials$update_order,
         mu_alpha = mu_alpha,
         alpha_prior_precision = cv_results$alpha_prior_precision_grid_opt,
-        b_prior_precision = b_prior_precision,
+        b_prior_precision = b_prec_final,
         standardize = standardize,
         intercept = intercept,
         max_iter = max_iter,
@@ -317,15 +392,20 @@ cv.spxlvb.fit <- function(
     return(cv_results)
   }
 
-  return(
-    list(
-      ordered_alpha_prior_precision_grid = cv_results$ordered_alpha_prior_precision_grid,
-      epe_test_k = cv_results$epe_test_k,
-      CVE = cv_results$CVE,
-      alpha_prior_precision_grid_opt = cv_results$alpha_prior_precision_grid_opt,
-      fit_spxlvb = fit_spxlvb
-    )
+  result <- list(
+    ordered_alpha_prior_precision_grid = cv_results$ordered_alpha_prior_precision_grid,
+    epe_test_k = cv_results$epe_test_k,
+    CVE = cv_results$CVE,
+    alpha_prior_precision_grid_opt = cv_results$alpha_prior_precision_grid_opt,
+    fit_spxlvb = fit_spxlvb
   )
+
+  if (is_2d) {
+    result$ordered_b_prior_precision_grid <- cv_results$ordered_b_prior_precision_grid
+    result$b_prior_precision_grid_opt <- cv_results$b_prior_precision_grid_opt
+  }
+
+  result
 }
 
 # Declaring global variables for CRAN

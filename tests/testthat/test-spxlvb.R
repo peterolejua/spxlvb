@@ -88,6 +88,18 @@ test_that("save_history = TRUE returns history matrices", {
     expect_equal(nrow(ap$mu_history), p)
 })
 
+test_that("spxlvb warns when max_iter is reached without convergence", {
+    dat <- setup_small_problem()
+
+    expect_warning(
+        spxlvb(
+            X = dat$X, Y = dat$Y,
+            max_iter = 1, tol = 1e-12
+        ),
+        "did not converge"
+    )
+})
+
 test_that("save_history = FALSE omits history matrices", {
     dat <- setup_small_problem()
 

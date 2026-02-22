@@ -16,6 +16,7 @@ cv.spxlvb(
   update_order = NULL,
   mu_alpha = NULL,
   alpha_prior_precision_grid = c(0, 10^(3:7)),
+  b_prior_precision_grid = NULL,
   b_prior_precision = rep(1, ncol(X)),
   standardize = TRUE,
   intercept = TRUE,
@@ -50,9 +51,18 @@ cv.spxlvb(
 \item{alpha_prior_precision_grid}{A numeric vector of values to cross-validate over.
 Defaults to \code{c(0, 10^(3:7))}.}
 
+\item{b_prior_precision_grid}{Optional numeric vector of scalar slab prior
+precisions to cross-validate over. When \code{NULL} (default), the scalar
+\code{b_prior_precision} is used for every fit (1D search over
+\code{alpha_prior_precision} only). When non-\code{NULL}, a 2D grid
+search is performed over all combinations of
+\code{alpha_prior_precision_grid} and \code{b_prior_precision_grid}.
+Each grid value is expanded to a constant vector of length \eqn{p}.}
+
 \item{b_prior_precision}{Numeric vector of length \eqn{p}.
 Coordinate-specific slab prior precisions
-(see \code{\link{spxlvb}} for details).
+(see \code{\link{spxlvb}} for details). Used only when
+\code{b_prior_precision_grid} is \code{NULL}.
 Defaults to a vector of ones of length \eqn{p} (determined
 automatically from \code{X}).}
 
@@ -73,16 +83,23 @@ currently registered backend (e.g., via \code{doParallel}).}
 }
 \value{
 A list containing:
-\item{ordered_alpha_prior_precision_grid}{The sorted hyperparameter grid used.}
-\item{epe_test_k}{A matrix of prediction errors for each fold and grid point.}
-\item{CVE}{Mean Cross-Validation Error for each grid point.}
-\item{alpha_prior_precision_grid_opt}{The value from the grid that minimized the CVE.}
+\item{ordered_alpha_prior_precision_grid}{The sorted alpha hyperparameter grid.}
+\item{ordered_b_prior_precision_grid}{The sorted b hyperparameter grid
+(only present when \code{b_prior_precision_grid} is non-\code{NULL}).}
+\item{epe_test_k}{Prediction errors per fold. A matrix (folds x alpha grid)
+for 1D search, or a 3D array (folds x alpha grid x b grid) for 2D search.}
+\item{CVE}{Mean CVE. A named vector for 1D search, or a matrix
+(alpha grid x b grid) for 2D search.}
+\item{alpha_prior_precision_grid_opt}{Optimal alpha value.}
+\item{b_prior_precision_grid_opt}{Optimal b value
+(only present when \code{b_prior_precision_grid} is non-\code{NULL}).}
 }
 \description{
 Performs k-fold cross-validation for the \code{spxlvb} model to
-optimize the \code{alpha_prior_precision} hyperparameter. This implementation
-is optimized for high-performance computing by flattening the cross-validation
-folds and hyperparameter grid into a single parallelizable task list.
+optimize hyperparameters. By default, only
+\code{alpha_prior_precision} is searched (1D CV). When
+\code{b_prior_precision_grid} is supplied, a joint 2D search over both
+\code{alpha_prior_precision} and \code{b_prior_precision} is performed.
 }
 \details{
 To use parallel processing, a backend must be registered before calling

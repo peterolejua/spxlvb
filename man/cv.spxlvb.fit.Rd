@@ -16,6 +16,7 @@ cv.spxlvb.fit(
   update_order = NULL,
   mu_alpha = NULL,
   alpha_prior_precision_grid = c(0, 10^(3:7)),
+  b_prior_precision_grid = NULL,
   b_prior_precision = rep(1, ncol(X)),
   standardize = TRUE,
   intercept = TRUE,
@@ -50,9 +51,18 @@ cv.spxlvb.fit(
 \item{alpha_prior_precision_grid}{A numeric vector of values to cross-validate over.
 Defaults to \code{c(0, 10^(3:7))}.}
 
+\item{b_prior_precision_grid}{Optional numeric vector of scalar slab prior
+precisions to cross-validate over. When \code{NULL} (default), the scalar
+\code{b_prior_precision} is used for every fit (1D search over
+\code{alpha_prior_precision} only). When non-\code{NULL}, a 2D grid
+search is performed over all combinations of
+\code{alpha_prior_precision_grid} and \code{b_prior_precision_grid}.
+Each grid value is expanded to a constant vector of length \eqn{p}.}
+
 \item{b_prior_precision}{Numeric vector of length \eqn{p}.
 Coordinate-specific slab prior precisions
-(see \code{\link{spxlvb}} for details).
+(see \code{\link{spxlvb}} for details). Used only when
+\code{b_prior_precision_grid} is \code{NULL}.
 Defaults to a vector of ones of length \eqn{p} (determined
 automatically from \code{X}).}
 
@@ -72,18 +82,21 @@ automatically from \code{X}).}
 currently registered backend (e.g., via \code{doParallel}).}
 }
 \value{
-The final fitted \code{spxlvb} model object based on the full dataset.
-If the final fit fails, the cross-validation results are returned with a warning.
+A list containing the cross-validation results and the final
+fitted \code{spxlvb} model (\code{fit_spxlvb}). If the final fit
+fails, only the CV results are returned with a warning.
 }
 \description{
 Performs k-fold cross-validation to determine the optimal
-\code{alpha_prior_precision} and then fits a final \code{spxlvb} model
-to the full dataset using the identified optimal hyperparameter.
+hyperparameters and then fits a final \code{spxlvb} model to the full
+dataset. When \code{b_prior_precision_grid} is supplied, a joint 2D
+search over both \code{alpha_prior_precision} and
+\code{b_prior_precision} is performed.
 }
 \details{
 This function orchestrates the cross-validation process and the final model fit.
 It first identifies initial values for the full dataset, uses \code{cv.spxlvb} to find
-the optimal hyperparameter, and finally fits the model to the complete dataset.
+the optimal hyperparameters, and finally fits the model to the complete dataset.
 }
 \examples{
 \donttest{

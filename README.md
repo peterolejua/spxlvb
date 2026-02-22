@@ -93,28 +93,26 @@ cat("Converged:", fit$converged, "in", fit$iterations, "iterations\n")
 - `b_prior_precision` controls the slab width of the spike-and-slab
   prior.
 
-Use **cross-validation** when no validation set is available:
+The recommended approach is **ELBO-based grid search**, which selects
+the hyperparameter combination that maximises the converged evidence
+lower bound. This requires only one fit per grid point (no
+cross-validation loop), making it substantially faster than CV-based
+tuning — and empirically at least as accurate (see the paper appendix
+for details):
 
 ```r
-cv_fit <- cv.spxlvb.fit(
-  k = 5, X = X, Y = Y,
-  alpha_prior_precision_grid = c(0, 10, 100, 1000),
-  parallel = FALSE
-)
-cv_fit$alpha_prior_precision_grid_opt
-```
-
-Or a **grid search** with a held-out validation set:
-
-```r
-grid_fit <- grid.search.spxlvb.fit(
+fit <- grid.search.spxlvb.fit(
   X = X, Y = Y,
-  X_validation = X_val, Y_validation = Y_val,
-  alpha_prior_precision_grid = c(10, 100, 1000),
-  b_prior_precision_grid = c(0.5, 1, 5),
+  alpha_prior_precision_grid = c(0, 30, 300, 3000, 30000),
+  b_prior_precision_grid = c(0.01, 0.1, 1, 10),
   parallel = FALSE
 )
 ```
+
+Cross-validation is also available via `cv.spxlvb.fit()`, which
+supports both 1-D search over `alpha_prior_precision` and 2-D search
+over `(alpha_prior_precision, b_prior_precision)`. See the vignette
+for details.
 
 ## Documentation
 
