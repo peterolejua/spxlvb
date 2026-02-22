@@ -38,9 +38,17 @@
 #' @param max_iter Maximum number of iterations for the variational update. Default is 1000.
 #' @param tol Convergence threshold for entropy and alpha change. Default is 1e-5.
 #' @param save_history Logical. If TRUE (default), per-iteration parameter histories are stored and returned. Set to FALSE to save memory in large-scale simulations.
-#' @param use_elbo Logical. If TRUE (default), convergence is based on relative ELBO change. If FALSE, uses chi-squared test on normalized linear predictor changes.
-#' @param update_pi Logical. If TRUE, the spike probability pi is updated via its Beta posterior at each iteration. Default is FALSE (fixed at prior mean).
-#' @param use_global_alpha Logical. If TRUE (default), a global \eqn{\alpha_{p+1}} rescaling step is applied after each coordinate sweep.
+#' @param convergence Character string specifying the convergence criterion.
+#'   One of \code{"elbo"} (default), \code{"chisq"}, or \code{"entropy"}.
+#'   \code{"elbo"} stops when the relative change in the Evidence Lower
+#'   Bound falls below \code{tol}.
+#'   \code{"chisq"} uses a chi-squared test on normalised changes in the
+#'   linear predictor.
+#'   \code{"entropy"} stops when the maximum absolute change in
+#'   per-coordinate Bernoulli entropy of the inclusion probabilities
+#'   falls below \code{tol}, following the criterion used by
+#'   Ray and Szabo (2022).
+#'   See Appendix for a comparison of the three criteria.
 #' @param seed Integer seed for cross-validation in glmnet. Default is 12376.
 #' @return A list with posterior summaries including estimated coefficients (`mu`),
 #' inclusion probabilities (`omega`), intercept (if applicable), alpha path, convergence status, etc.
@@ -52,8 +60,8 @@
 #' intercept. At each coordinate update \eqn{j}, the optimal
 #' \eqn{\alpha_j} rescales all other variational parameters to improve
 #' calibration. After a full sweep through all \eqn{p} coordinates, a
-#' global \eqn{\alpha_{p+1}} rescaling is applied (controlled by
-#' \code{use_global_alpha}). When all expansion parameters equal 1,
+#' global \eqn{\alpha_{p+1}} rescaling is applied. When all expansion
+#' parameters equal 1,
 #' the algorithm reduces to standard coordinate-ascent VB.
 #'
 #' The key user-facing parameters governing the explosion are
@@ -102,17 +110,16 @@ spxlvb <- function(
   max_iter = 1000,
   tol = 1e-3,
   save_history = TRUE,
-  use_elbo = TRUE,
-  update_pi = FALSE,
-  use_global_alpha = TRUE,
+  convergence = c("elbo", "chisq", "entropy"),
   seed = 12376 # seed for cv.glmnet initials
 ) {
-  # intercept requires standardize to compute means
+  convergence <- match.arg(convergence)
+  convergence_method <- match(convergence, c("elbo", "chisq", "entropy")) - 1L
+
   if (intercept && !standardize) {
     stop("intercept = TRUE requires standardize = TRUE")
   }
 
-  # extract problem dimensions
   p <- ncol(X)
 
   # Standardize data
@@ -161,9 +168,7 @@ spxlvb <- function(
     max_iter,
     tol,
     save_history,
-    use_elbo,
-    update_pi,
-    use_global_alpha
+    convergence_method
   )
   fn <- "run_vb_updates_cpp"
 

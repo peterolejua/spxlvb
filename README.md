@@ -36,7 +36,7 @@ parameter, **not** from an intercept term.
 
 | R argument | Dimension | Default | Role |
 |---|---|---|---|
-| `mu_alpha` | p+1 | all ones | Prior means for expansion parameters α₁,…,αₚ (per-coordinate) and α_{p+1} (global, applied after each full sweep via `use_global_alpha`). The +1 is for the global parameter, **not** an intercept. |
+| `mu_alpha` | p+1 | all ones | Prior means for expansion parameters α₁,…,αₚ (per-coordinate) and α_{p+1} (global, applied after each full sweep). The +1 is for the global parameter, **not** an intercept. |
 | `alpha_prior_precision` | scalar | `1000` | Shared prior precision τ_α for all p+1 expansion parameters. Larger = closer to standard VB. |
 | `b_prior_precision` | p | all ones | Slab prior precisions τ_{b,j} for the regression coefficients (**not** the expansion parameters). |
 
