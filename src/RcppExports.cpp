@@ -12,8 +12,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // run_vb_updates_cpp
-Rcpp::List run_vb_updates_cpp(const arma::mat& X, const arma::vec& Y, arma::vec mu, arma::vec omega, double c_pi, double d_pi, double tau_e, const arma::uvec& update_order, arma::vec mu_alpha, double tau_alpha, arma::vec tau_b, int max_iter, double tol, bool save_history, bool use_elbo, bool update_pi, bool use_global_alpha);
-RcppExport SEXP _spxlvb_run_vb_updates_cpp(SEXP XSEXP, SEXP YSEXP, SEXP muSEXP, SEXP omegaSEXP, SEXP c_piSEXP, SEXP d_piSEXP, SEXP tau_eSEXP, SEXP update_orderSEXP, SEXP mu_alphaSEXP, SEXP tau_alphaSEXP, SEXP tau_bSEXP, SEXP max_iterSEXP, SEXP tolSEXP, SEXP save_historySEXP, SEXP use_elboSEXP, SEXP update_piSEXP, SEXP use_global_alphaSEXP) {
+Rcpp::List run_vb_updates_cpp(const arma::mat& X, const arma::vec& Y, arma::vec mu, arma::vec omega, double c_pi, double d_pi, double tau_e, const arma::uvec& update_order, arma::vec mu_alpha, double tau_alpha, arma::vec tau_b, int max_iter, double tol, bool save_history, int convergence_method);
+RcppExport SEXP _spxlvb_run_vb_updates_cpp(SEXP XSEXP, SEXP YSEXP, SEXP muSEXP, SEXP omegaSEXP, SEXP c_piSEXP, SEXP d_piSEXP, SEXP tau_eSEXP, SEXP update_orderSEXP, SEXP mu_alphaSEXP, SEXP tau_alphaSEXP, SEXP tau_bSEXP, SEXP max_iterSEXP, SEXP tolSEXP, SEXP save_historySEXP, SEXP convergence_methodSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -31,16 +31,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type max_iter(max_iterSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< bool >::type save_history(save_historySEXP);
-    Rcpp::traits::input_parameter< bool >::type use_elbo(use_elboSEXP);
-    Rcpp::traits::input_parameter< bool >::type update_pi(update_piSEXP);
-    Rcpp::traits::input_parameter< bool >::type use_global_alpha(use_global_alphaSEXP);
-    rcpp_result_gen = Rcpp::wrap(run_vb_updates_cpp(X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history, use_elbo, update_pi, use_global_alpha));
+    Rcpp::traits::input_parameter< int >::type convergence_method(convergence_methodSEXP);
+    rcpp_result_gen = Rcpp::wrap(run_vb_updates_cpp(X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history, convergence_method));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_spxlvb_run_vb_updates_cpp", (DL_FUNC) &_spxlvb_run_vb_updates_cpp, 17},
+    {"_spxlvb_run_vb_updates_cpp", (DL_FUNC) &_spxlvb_run_vb_updates_cpp, 15},
     {NULL, NULL, 0}
 };
 
