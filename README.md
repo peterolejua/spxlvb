@@ -28,6 +28,28 @@ convergence speed and calibration.
 - C++ backend via `RcppArmadillo` for fast linear algebra
 - Parallel evaluation of tuning grids via `foreach`
 
+## Parameter structure
+
+The "parameter explosion" introduces **p+1 expansion parameters**
+α₁, …, αₚ, α_{p+1}. The +1 comes from the global expansion
+parameter, **not** from an intercept term.
+
+| R argument | Dimension | Default | Role |
+|---|---|---|---|
+| `mu_alpha` | p+1 | all ones | Prior means for expansion parameters α₁,…,αₚ (per-coordinate) and α_{p+1} (global, applied after each full sweep via `use_global_alpha`). The +1 is for the global parameter, **not** an intercept. |
+| `alpha_prior_precision` | scalar | `1000` | Shared prior precision τ_α for all p+1 expansion parameters. Larger = closer to standard VB. |
+| `b_prior_precision` | p | all ones | Slab prior precisions τ_{b,j} for the regression coefficients (**not** the expansion parameters). |
+
+When all expansion parameters equal 1, the algorithm reduces to
+standard coordinate-ascent VB.
+
+**Intercept:** When `intercept = TRUE`, the model is fit on
+centered-and-scaled data. After convergence, the intercept is
+recovered as β₀ = Ȳ − Σⱼ β̂ⱼ X̄ⱼ and prepended to the `beta`
+vector. The returned `beta` has length p+1 (intercept + p
+coefficients), but this +1 is unrelated to the expansion parameter
+dimension.
+
 ## Installation
 
 Install the development version from GitHub:

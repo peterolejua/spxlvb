@@ -23,6 +23,10 @@ knitr::opts_chunk$set(
 
 The `spxlvb` package implements a Parameter Exploded Variational Bayes (PX-VB) algorithm for high-dimensional linear regression with spike-and-slab priors. Standard mean-field Variational Bayes (VB) often suffers from poor predictive calibration and underestimation of posterior variance in high dimensions. `spxlvb` mitigates these issues by introducing an expansion parameters ($\alpha$) to decouple the estimation of the signal's location from its scale, achieving better calibration and robustness to prior specifications.
 
+The name "parameter explosion" comes from the introduction of **p+1 expansion parameters** $\alpha_1, \ldots, \alpha_p, \alpha_{p+1}$. The $+1$ comes from the global expansion parameter $\alpha_{p+1}$, not from an intercept. The first $p$ are per-coordinate: at each coordinate update $j$, the optimal $\alpha_j$ rescales all other variational parameters. The $(p+1)$-th is a global rescaling applied after each full coordinate sweep. When all expansion parameters equal 1, the algorithm reduces to standard VB.
+
+The key arguments controlling the explosion are `mu_alpha` (prior means, length $p+1$) and `alpha_prior_precision` (shared prior precision, scalar), while `b_prior_precision` (length $p$) controls the spike-and-slab slab width separately. When `intercept = TRUE`, the intercept is computed after fitting on centered/scaled data --- it does not add a column to `X` or change the parameter dimensions.
+
 # Installation
 
 You can install the development version of spxlvb from GitHub:
@@ -94,6 +98,11 @@ initials <- get.initials.spxlvb(
 )
 
 ## Fit the Parameter Exploded Variational Bayes model
+## Note: mu_alpha has length p+1 (one per expansion parameter, including the
+## global alpha_{p+1} -- not related to the intercept), while b_prior_precision
+## has length p (one per regression coefficient in the slab component). These
+## defaults are determined automatically from X, so you only need to specify
+## them if you want non-default values.
 fit <- spxlvb(
   X = sim_data$X,
   Y = sim_data$Y,

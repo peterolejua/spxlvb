@@ -9,9 +9,30 @@
 #' @param d_pi_0 Optional numeric. Prior Beta(a, b) parameter b for the spike probability.
 #' @param tau_e Optional numeric. Known or estimated error precision.
 #' @param update_order Optional integer vector. The coordinate update order (0-indexed for C++).
-#' @param mu_alpha Prior mean for alpha. Default is rep(1, ncol(X)).
-#' @param alpha_prior_precision Prior precision for alpha. \eqn{\alpha_j \sim N\{\mu_{\alpha j},(\tau_{\epsilon}\tau_\alpha)^{-1}}. Default is 1000.
-#' @param b_prior_precision Slab prior precision. \eqn{b_j \sim N\{0,(\tau_{\epsilon}\tau_{bj})^{-1}}. Default is a \eqn{\tau_b_j = 1/\tau_{\epsilon}}.
+#' @param mu_alpha Numeric vector of length \eqn{p+1}. Prior means for the
+#'   expansion parameters \eqn{\alpha_1,\ldots,\alpha_{p+1}}.
+#'   Elements 1 to \eqn{p} are the per-coordinate expansion prior means;
+#'   element \eqn{p+1} is the prior mean for the global expansion
+#'   parameter \eqn{\alpha_{p+1}} (applied after each full coordinate sweep).
+#'   The \eqn{p+1} dimension comes from the global expansion parameter,
+#'   not from an intercept term.
+#'   Defaults to a vector of ones of length \eqn{p+1} (determined
+#'   automatically from \code{X}), centering all expansion parameters
+#'   at 1 (no rescaling a priori).
+#' @param alpha_prior_precision Numeric scalar. Shared prior precision
+#'   \eqn{\tau_\alpha} for all \eqn{p+1} expansion parameters.
+#'   Each \eqn{\alpha_j \sim N(\mu_{\alpha,j},\;
+#'   (\tau_\epsilon \tau_\alpha)^{-1})}. Larger values shrink the
+#'   expansion parameters toward their prior means (closer to standard VB).
+#'   Default is 1000.
+#' @param b_prior_precision Numeric vector of length \eqn{p}.
+#'   Coordinate-specific slab prior precisions
+#'   \eqn{\tau_{b,1},\ldots,\tau_{b,p}}. Each slab component has
+#'   \eqn{b_j \mid s_j=1 \sim N(0,\; (\tau_\epsilon \tau_{b,j})^{-1})}.
+#'   These are the slab precisions for the regression coefficients,
+#'   not for the expansion parameters.
+#'   Defaults to a vector of ones of length \eqn{p} (determined
+#'   automatically from \code{X}).
 #' @param standardize Logical. Center Y, and center and scale X. Default is TRUE.
 #' @param intercept Logical. Whether to include an intercept. Default is TRUE. After the model is fit on the centered and scaled data, the final coefficients are "unscaled" to put them back on the original scale of your data. The intercept is then calculated separately using the means and the final coefficients.
 #' @param max_iter Maximum number of iterations for the variational update. Default is 1000.
@@ -23,8 +44,34 @@
 #' @param seed Integer seed for cross-validation in glmnet. Default is 12376.
 #' @return A list with posterior summaries including estimated coefficients (`mu`),
 #' inclusion probabilities (`omega`), intercept (if applicable), alpha path, convergence status, etc.
-#' @details This function acts as a wrapper for various C++ implementations of the SPXLVB algorithm.
-#'   It handles initial parameter setup and dynamically dispatches to the chosen C++ version.
+#' @details
+#' \strong{Parameter explosion.}
+#' The algorithm introduces \eqn{p+1} expansion parameters
+#' \eqn{\alpha_1,\ldots,\alpha_p,\alpha_{p+1}}. The \eqn{+1} comes
+#' from the global expansion parameter \eqn{\alpha_{p+1}}, not from an
+#' intercept. At each coordinate update \eqn{j}, the optimal
+#' \eqn{\alpha_j} rescales all other variational parameters to improve
+#' calibration. After a full sweep through all \eqn{p} coordinates, a
+#' global \eqn{\alpha_{p+1}} rescaling is applied (controlled by
+#' \code{use_global_alpha}). When all expansion parameters equal 1,
+#' the algorithm reduces to standard coordinate-ascent VB.
+#'
+#' The key user-facing parameters governing the explosion are
+#' \code{mu_alpha} (length \eqn{p+1}) and \code{alpha_prior_precision}
+#' (scalar, shared). The slab prior precisions \code{b_prior_precision}
+#' (length \eqn{p}) are separate and control the spike-and-slab
+#' component, not the expansion.
+#'
+#' \strong{Intercept handling.}
+#' When \code{intercept = TRUE} (requires \code{standardize = TRUE}),
+#' the model is fit on centered-and-scaled data (no intercept column is
+#' added to \code{X}). After convergence, the coefficients are unscaled
+#' to the original data scale, and the intercept is computed as
+#' \eqn{\hat\beta_0 = \bar Y - \sum_{j=1}^{p} \hat\beta_j \bar X_j},
+#' where \eqn{\bar Y} and \eqn{\bar X_j} are the original sample means.
+#' The returned \code{beta} vector has length \eqn{p+1} (intercept
+#' first), but this \eqn{+1} is unrelated to the expansion parameter
+#' dimension.
 #' @examples
 #' \donttest{
 #' set.seed(1)

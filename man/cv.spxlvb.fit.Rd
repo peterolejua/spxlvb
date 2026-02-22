@@ -50,7 +50,11 @@ cv.spxlvb.fit(
 \item{alpha_prior_precision_grid}{A numeric vector of values to cross-validate over.
 Defaults to \code{c(0, 10^(3:7))}.}
 
-\item{b_prior_precision}{Numeric. Initial prior precision for the slab component. Defaults to 400.}
+\item{b_prior_precision}{Numeric vector of length \eqn{p}.
+Coordinate-specific slab prior precisions
+(see \code{\link{spxlvb}} for details).
+Defaults to a vector of ones of length \eqn{p} (determined
+automatically from \code{X}).}
 
 \item{standardize}{Logical. Should the design matrix be standardized? Defaults to TRUE.}
 

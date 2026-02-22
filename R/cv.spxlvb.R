@@ -17,7 +17,11 @@
 #' @param mu_alpha Optional numeric vector of length \eqn{p+1}. Prior means for the expansion parameters.
 #' @param alpha_prior_precision_grid A numeric vector of values to cross-validate over.
 #'   Defaults to \code{c(0, 10^(3:7))}.
-#' @param b_prior_precision Numeric. Initial prior precision for the slab component. Defaults to 400.
+#' @param b_prior_precision Numeric vector of length \eqn{p}.
+#'   Coordinate-specific slab prior precisions
+#'   (see \code{\link{spxlvb}} for details).
+#'   Defaults to a vector of ones of length \eqn{p} (determined
+#'   automatically from \code{X}).
 #' @param standardize Logical. Should the design matrix be standardized? Defaults to TRUE.
 #' @param intercept Logical. Should an intercept be included in the model? Defaults to TRUE.
 #' @param max_iter Integer. Maximum number of iterations for each model fit.

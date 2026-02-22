@@ -51,11 +51,20 @@ grid.search.spxlvb.fit(
 
 \item{update_order}{Numeric vector for update order.}
 
-\item{mu_alpha}{Prior mean for alpha.}
+\item{mu_alpha}{Numeric vector of length \eqn{p+1}. Prior means for
+the expansion parameters. The \eqn{p+1} dimension comes from the
+global expansion parameter, not an intercept
+(see \code{\link{spxlvb}} for details).
+Defaults to a vector of ones of length \eqn{p+1} (determined
+automatically from \code{X}).}
 
-\item{alpha_prior_precision_grid}{Grid for alpha prior precision.}
+\item{alpha_prior_precision_grid}{Numeric vector. Grid of expansion prior
+precision values to search over.}
 
-\item{b_prior_precision_grid}{Grid for slab prior precision.}
+\item{b_prior_precision_grid}{Numeric vector. Grid of scalar slab prior
+precisions to search over. Each scalar value is internally expanded
+to a constant vector of length \eqn{p} via
+\code{rep(value, ncol(X))}.}
 
 \item{standardize}{Logical. Default is TRUE.}
 
