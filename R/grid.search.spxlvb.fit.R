@@ -12,9 +12,18 @@
 #' @param d_pi_0 Prior parameter for pi (shape2).
 #' @param tau_e Initial precision of errors.
 #' @param update_order Numeric vector for update order.
-#' @param mu_alpha Prior mean for alpha.
-#' @param alpha_prior_precision_grid Grid for alpha prior precision.
-#' @param b_prior_precision_grid Grid for slab prior precision.
+#' @param mu_alpha Numeric vector of length \eqn{p+1}. Prior means for
+#'   the expansion parameters. The \eqn{p+1} dimension comes from the
+#'   global expansion parameter, not an intercept
+#'   (see \code{\link{spxlvb}} for details).
+#'   Defaults to a vector of ones of length \eqn{p+1} (determined
+#'   automatically from \code{X}).
+#' @param alpha_prior_precision_grid Numeric vector. Grid of expansion prior
+#'   precision values to search over.
+#' @param b_prior_precision_grid Numeric vector. Grid of scalar slab prior
+#'   precisions to search over. Each scalar value is internally expanded
+#'   to a constant vector of length \eqn{p} via
+#'   \code{rep(value, ncol(X))}.
 #' @param standardize Logical. Default is TRUE.
 #' @param intercept Logical. Default is TRUE.
 #' @param max_iter Maximum iterations.
