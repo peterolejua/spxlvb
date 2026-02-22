@@ -121,6 +121,7 @@ spxlvb <- function(
   }
 
   p <- ncol(X)
+  if (is.null(mu_alpha)) mu_alpha <- rep(1, p + 1)
 
   # Standardize data
   std <- standardize_data(X, Y, standardize)
@@ -173,6 +174,16 @@ spxlvb <- function(
   fn <- "run_vb_updates_cpp"
 
   approximate_posterior <- do.call(fn, arg)
+
+  if (!approximate_posterior$converged) {
+    warning(
+      sprintf(
+        "spxlvb did not converge within max_iter = %d iterations. Consider increasing max_iter or relaxing tol (current: %g).",
+        max_iter, tol
+      ),
+      call. = FALSE
+    )
+  }
 
   # Unscale solution
   if (standardize) {
