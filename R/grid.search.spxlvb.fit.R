@@ -31,6 +31,8 @@
 #' @param seed Seed for reproducibility.
 #' @param verbose Logical, if TRUE, prints progress.
 #' @param parallel Logical, if TRUE, search in parallel.
+#' @param save_history Logical. If TRUE, the final refit stores per-iteration
+#'   parameter histories. Default is FALSE to save memory in simulation studies.
 #' @return A list with elements \code{hyper_grid} (data frame of all grid
 #'   combinations and their metrics), \code{optimal_hyper} (the selected
 #'   hyperparameter values), \code{fit_spxlvb} (the final fitted model),
@@ -70,7 +72,8 @@ grid.search.spxlvb.fit <- function(
   tol = 1e-5,
   seed = 12376,
   verbose = TRUE,
-  parallel = TRUE
+  parallel = TRUE,
+  save_history = FALSE
 ) {
   set.seed(seed)
 
@@ -215,6 +218,7 @@ grid.search.spxlvb.fit <- function(
     intercept = intercept,
     max_iter = max_iter,
     tol = tol,
+    save_history = save_history,
     seed = seed
   )
 

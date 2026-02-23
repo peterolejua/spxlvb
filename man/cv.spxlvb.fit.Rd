@@ -24,7 +24,8 @@ cv.spxlvb.fit(
   tol = 1e-05,
   seed = 12376,
   verbose = TRUE,
-  parallel = TRUE
+  parallel = TRUE,
+  save_history = FALSE
 )
 }
 \arguments{
@@ -80,6 +81,9 @@ automatically from \code{X}).}
 
 \item{parallel}{Logical. If TRUE, execution is performed in parallel using the
 currently registered backend (e.g., via \code{doParallel}).}
+
+\item{save_history}{Logical. If TRUE, the final refit stores per-iteration
+parameter histories. Default is FALSE to save memory in simulation studies.}
 }
 \value{
 A list containing the cross-validation results and the final

@@ -25,7 +25,8 @@ grid.search.spxlvb.fit(
   tol = 1e-05,
   seed = 12376,
   verbose = TRUE,
-  parallel = TRUE
+  parallel = TRUE,
+  save_history = FALSE
 )
 }
 \arguments{
@@ -79,6 +80,9 @@ to a constant vector of length \eqn{p} via
 \item{verbose}{Logical, if TRUE, prints progress.}
 
 \item{parallel}{Logical, if TRUE, search in parallel.}
+
+\item{save_history}{Logical. If TRUE, the final refit stores per-iteration
+parameter histories. Default is FALSE to save memory in simulation studies.}
 }
 \value{
 A list with elements \code{hyper_grid} (data frame of all grid

@@ -257,6 +257,8 @@ cv.spxlvb <- function(
 #'   \code{b_prior_precision} is performed.
 #'
 #' @inheritParams cv.spxlvb
+#' @param save_history Logical. If TRUE, the final refit stores per-iteration
+#'   parameter histories. Default is FALSE to save memory in simulation studies.
 #' @return A list containing the cross-validation results and the final
 #'   fitted \code{spxlvb} model (\code{fit_spxlvb}). If the final fit
 #'   fails, only the CV results are returned with a warning.
@@ -297,7 +299,8 @@ cv.spxlvb.fit <- function(
   tol = 1e-5,
   seed = 12376,
   verbose = TRUE,
-  parallel = TRUE
+  parallel = TRUE,
+  save_history = FALSE
 ) {
   set.seed(seed)
   p <- ncol(X)
@@ -380,6 +383,7 @@ cv.spxlvb.fit <- function(
         intercept = intercept,
         max_iter = max_iter,
         tol = tol,
+        save_history = save_history,
         seed = seed
       )
     },
