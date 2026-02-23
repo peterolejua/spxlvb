@@ -132,6 +132,7 @@ grid.search.spxlvb.fit <- function(
       intercept = intercept,
       max_iter = max_iter,
       tol = tol,
+      save_history = FALSE,
       seed = seed
     )
 
