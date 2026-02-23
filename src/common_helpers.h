@@ -22,6 +22,20 @@ Rcpp::List compute_elbo_cpp(
     double pi_fixed
 );
 
+double compute_elbo_scalar(
+    const arma::vec& mu,
+    const arma::vec& sigma,
+    const arma::vec& omega,
+    const arma::vec& tau_b,
+    const arma::vec& mu_alpha,
+    double Y2,
+    double t_YW,
+    double t_W2,
+    double tau_alpha,
+    double tau_e,
+    double pi_fixed
+);
+
 double sigmoid_cpp(const double &x);
 
 VBUpdate2x2 compute_vb_update_2x2(

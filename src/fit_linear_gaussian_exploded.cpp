@@ -30,18 +30,32 @@ Rcpp::List run_vb_updates_cpp(
   int p = X.n_cols;
 
   arma::vec YX_vec = X.t() * Y;
-  arma::mat X_2 = square(X);
-  arma::vec X_2_col_sums = arma::sum(X_2, 0).t();
   double Y2 = arma::dot(Y, Y);
+
+  arma::mat X_2;
+  arma::vec X_2_col_sums(p);
+  if (convergence_method == 1) {
+    X_2 = arma::square(X);
+    X_2_col_sums = arma::sum(X_2, 0).t();
+  } else {
+    for (int j = 0; j < p; ++j) {
+      X_2_col_sums(j) = arma::dot(X.col(j), X.col(j));
+    }
+  }
 
   arma::vec sigma = 1.0 / arma::sqrt(tau_e * (X_2_col_sums + tau_b));
   arma::vec alpha_j_optimal(p + 1, fill::ones);
   arma::vec logit_phi = arma::log(omega / (1.0 - omega));
 
   arma::vec W = X * (omega % mu);
-  arma::vec var_W_vec = X_2 * (arma::square(mu) % omega % (1.0 - omega) +
-                                arma::square(sigma) % omega);
-  double var_W = arma::accu(var_W_vec);
+  double var_W;
+  {
+    arma::vec g = arma::square(mu) % omega % (1.0 - omega) +
+                  arma::square(sigma) % omega;
+    var_W = (convergence_method == 1)
+      ? arma::accu(X_2 * g)
+      : arma::dot(X_2_col_sums, g);
+  }
 
   double pi_fixed = c_pi / (c_pi + d_pi);
   double E_logit_pi = std::log(pi_fixed) - std::log(1 - pi_fixed);
@@ -65,70 +79,75 @@ Rcpp::List run_vb_updates_cpp(
   int last_iter = 0;
   double prev_elbo = R_NegInf;
   arma::vec omega_old_entropy = omega;
+  arma::vec W_old(convergence_method == 1 ? n : 0);
   for (int iter = 0; iter < max_iter; ++iter) {
     Rcpp::checkUserInterrupt();
 
-    arma::vec W_old = W;
+    if (convergence_method == 1) W_old = W;
 
     for (int k = 0; k < p; ++k) {
       unsigned int j = update_order(k);
 
-      arma::vec W_j = W - (omega(j) * mu(j)) * X.col(j);
+      double old_contrib = omega(j) * mu(j);
+      W -= old_contrib * X.col(j);
+
       double coeff = mu(j) * mu(j) * omega(j) * (1.0 - omega(j)) +
                      sigma(j) * sigma(j) * omega(j);
       double var_W_j = var_W - X_2_col_sums(j) * coeff;
-      double W_j_squared = var_W_j + arma::dot(W_j, W_j);
+      double W_j_squared = var_W_j + arma::dot(W, W);
 
-      double dot_Xj_Wj = arma::dot(X.col(j), W_j);
-      double dot_Y_Wj  = arma::dot(Y, W_j);
+      double dot_Xj_Wj = arma::dot(X.col(j), W);
+      double dot_Y_Wj  = arma::dot(Y, W);
 
-      VBUpdate2x2 u0 = compute_vb_update_2x2(
-        X_2_col_sums(j), dot_Xj_Wj, YX_vec(j), dot_Y_Wj,
-        W_j_squared, 0.0, tau_e, tau_b(j), tau_alpha, mu_alpha(j)
-      );
+      double L11 = tau_e * (W_j_squared + tau_alpha);
+      double rhs1 = tau_e * (dot_Y_Wj + tau_alpha * mu_alpha(j));
 
-      VBUpdate2x2 u1 = compute_vb_update_2x2(
-        X_2_col_sums(j), dot_Xj_Wj, YX_vec(j), dot_Y_Wj,
-        W_j_squared, 1.0, tau_e, tau_b(j), tau_alpha, mu_alpha(j)
-      );
+      double L00_0 = tau_e * tau_b(j);
+      double eta1_0 = rhs1 / L11;
+      double det0 = L00_0 * L11;
 
-      double det0 = u0.L00 * u0.L11 - u0.L01 * u0.L01;
-      double det1 = u1.L00 * u1.L11 - u1.L01 * u1.L01;
+      double L00_1 = tau_e * (X_2_col_sums(j) + tau_b(j));
+      double L01_1 = tau_e * dot_Xj_Wj;
+      double rhs0_1 = tau_e * YX_vec(j);
+      double det1 = L00_1 * L11 - L01_1 * L01_1;
 
       double eps = std::numeric_limits<double>::epsilon();
       det0 = std::max(det0, eps);
       det1 = std::max(det1, eps);
 
+      double inv_det1 = 1.0 / det1;
+      double eta0_1 = inv_det1 * (L11 * rhs0_1 - L01_1 * rhs1);
+      double eta1_1 = inv_det1 * (-L01_1 * rhs0_1 + L00_1 * rhs1);
+
       double logit_phi_j =
         E_logit_pi +
         0.5 * std::log(det0 / det1) -
-        0.5 * u0.eta1 * u0.eta1 * u0.L11 +
-        0.5 * u1.eta0 * u1.eta0 * u1.L00 +
-        u1.eta0 * u1.eta1 * u1.L01 +
-        0.5 * u1.eta1 * u1.eta1 * u1.L11;
+        0.5 * rhs1 * rhs1 / L11 +
+        0.5 * eta0_1 * eta0_1 * L00_1 +
+        eta0_1 * eta1_1 * L01_1 +
+        0.5 * eta1_1 * eta1_1 * L11;
 
       logit_phi(j) = logit_phi_j;
 
-      mu(j) = u1.eta0 - u1.L01 / u1.L00 * (1.0 - u1.eta1);
-      sigma(j) = std::sqrt(1.0 / u1.L00);
+      mu(j) = eta0_1 - L01_1 / L00_1 * (1.0 - eta1_1);
+      sigma(j) = std::sqrt(1.0 / L00_1);
 
-      double L_0 = u0.L11 - u0.L01 * u0.L01 / u0.L00;
-      double L_1 = u1.L11 - u1.L01 * u1.L01 / u1.L00;
+      double L_1 = L11 - L01_1 * L01_1 / L00_1;
 
-      double diff0 = 1.0 - u0.eta1;
-      double diff1 = 1.0 - u1.eta1;
-      double g_0 = -0.5 * L_0 * diff0 * diff0;
+      double diff0 = 1.0 - eta1_0;
+      double diff1 = 1.0 - eta1_1;
+      double g_0 = -0.5 * L11 * diff0 * diff0;
       double g_1 = -0.5 * L_1 * diff1 * diff1;
 
       omega(j) = sigmoid_cpp(logit_phi_j + (g_1 - g_0));
 
-      double R_1 = u1.L01 * u1.L01 / u1.L00;
+      double R_1 = L01_1 * L01_1 / L00_1;
 
-      double sigma2_alpha_0 = 1.0 / L_0;
+      double sigma2_alpha_0 = 1.0 / L11;
       double sigma2_alpha_1 = 1.0 / (L_1 + R_1);
 
-      double mu_alpha_0 = u0.eta1;
-      double mu_alpha_1 = (L_1 * u1.eta1 + R_1) * sigma2_alpha_1;
+      double mu_alpha_0 = eta1_0;
+      double mu_alpha_1 = (L_1 * eta1_1 + R_1) * sigma2_alpha_1;
 
       double D_j = (omega(j) * sigma2_alpha_0) /
                    (omega(j) * sigma2_alpha_0 +
@@ -150,7 +169,8 @@ Rcpp::List run_vb_updates_cpp(
       tau_b(j)    = tau_b_j_saved;
       mu_alpha(j) = 1.0 - (optimal_alpha_j - mu_alpha(j));
 
-      W       = optimal_alpha_j * W_j + (omega(j) * mu(j)) * X.col(j);
+      W *= optimal_alpha_j;
+      W += (omega(j) * mu(j)) * X.col(j);
       coeff   = mu(j) * mu(j) * omega(j) * (1.0 - omega(j)) +
                 sigma(j) * sigma(j) * omega(j);
       var_W   = optimal_alpha_j * optimal_alpha_j * var_W_j +
@@ -179,20 +199,24 @@ Rcpp::List run_vb_updates_cpp(
     double convg2 = 1.0;
 
     if (iter > 0) {
-      var_W_vec = X_2 * (arma::square(mu) % omega % (1.0 - omega) +
-                          arma::square(sigma) % omega);
-      var_W = arma::accu(var_W_vec);
-      arma::vec tmp = W_old - W;
-      arma::vec stat_vec = arma::square(tmp) / var_W_vec;
-      double max_stat = stat_vec.max() / std::log((double)n);
-      convg2 = R::pchisq(max_stat, 1.0, 1, 0);
+      arma::vec g = arma::square(mu) % omega % (1.0 - omega) +
+                    arma::square(sigma) % omega;
+      if (convergence_method == 1) {
+        arma::vec var_W_vec = X_2 * g;
+        var_W = arma::accu(var_W_vec);
+        arma::vec tmp = W_old - W;
+        arma::vec stat_vec = arma::square(tmp) / var_W_vec;
+        double max_stat = stat_vec.max() / std::log((double)n);
+        convg2 = R::pchisq(max_stat, 1.0, 1, 0);
+      } else {
+        var_W = arma::dot(X_2_col_sums, g);
+      }
     }
 
-    Rcpp::List elbo_res = compute_elbo_cpp(
+    double current_elbo = compute_elbo_scalar(
       mu, sigma, omega, tau_b, mu_alpha,
       Y2, t_YW, t_W2, tau_alpha, tau_e, pi_fixed
     );
-    double current_elbo = elbo_res["ELBO"];
 
     if (save_history) {
       mu_hist.push_back(mu);

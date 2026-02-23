@@ -2,7 +2,7 @@ Package: spxlvb
 Type: Package
 Title: Parameter Exploded Variational Bayes for Linear Regression with
     High-Dimensional Variable Selection and Spike-and-Slab Priors
-Version: 0.0.0.9000
+Version: 0.0.0.9001
 Authors@R: c(
     person("Peter", "Olejua", , "polejua@email.sc.edu", role = c("aut", "cre")),
     person("Alexander", "Mclain", , "mclaina@mailbox.sc.edu", role = c("aut")))
