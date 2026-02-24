@@ -131,10 +131,10 @@ spxlvb <- function(
   sigma_estimate <- std$sigma_estimate
   Y_mean <- std$Y_mean
 
-  # get.initials.spxlvb is in R/ directory and is automatically available
+  # get_initials_spxlvb is in R/ directory and is automatically available
   # if null they are calculated
   # if given the function is still called but skipped when not needed.
-  initials <- get.initials.spxlvb(
+  initials <- get_initials_spxlvb(
     X = X_cs, # design matrix
     Y = Y_c, # response vector
     mu_0 = mu_0, # Variational Normal mean estimated beta coefficient from lasso, posterior expectation of bj|sj = 1

@@ -11,3 +11,5 @@
 ^\.claude$
 ^CLAUDE\.md$
 ^src/\.Rhistory$
+^doc$
+^Meta$

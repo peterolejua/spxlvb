@@ -10,13 +10,13 @@
 #'   Cholesky factor \eqn{L} such that the covariance matrix equals
 #'   \eqn{LL^\top}.
 #' @examples
-#' L <- get.L(p = 20, range = 2.0, smoothness = 1.5)
+#' L <- get_L(p = 20, range = 2.0, smoothness = 1.5)
 #' @importFrom stats dist
 #' @export
-get.L <- function(p, range, smoothness, phi = 1.0) {
+get_L <- function(p, range, smoothness, phi = 1.0) {
   # 1. Generate Covariance Structure
   dist_matrix <- as.matrix(dist(1:p))
-  cov_matrix <- Matern_Internal(dist_matrix, range, smoothness, phi)
+  cov_matrix <- matern_internal(dist_matrix, range, smoothness, phi)
 
   # 2. Cholesky decomposition: cov = L %*% t(L)
   # t(chol()) gives the Lower triangular matrix
@@ -36,7 +36,7 @@ get.L <- function(p, range, smoothness, phi = 1.0) {
 #' @param n An integer. The number of observations.
 #' @param p An integer. The number of predictors.
 #' @param pi_0 A numeric value between 0 and 1. The proportion of non-zero coefficients.
-#' @param L The Lower Cholesky matrix provided by \code{get.L}.
+#' @param L The Lower Cholesky matrix provided by \code{get_L}.
 #' @param sd_beta A numeric value. The standard deviation of the non-zero coefficients.
 #' @param SNR A numeric value. The signal-to-noise ratio.
 #' @param n_test An integer. Number of test observations.
@@ -47,11 +47,11 @@ get.L <- function(p, range, smoothness, phi = 1.0) {
 #'   \code{n_validation} are provided, the list also contains \code{X_test},
 #'   \code{Y_test}, \code{X_validation}, and \code{Y_validation}.
 #' @examples
-#' L <- get.L(p = 20, range = 2.0, smoothness = 1.5)
-#' dat <- matern.data.gen(seed_val = 1, n = 20, p = 20, pi_0 = 0.1, L = L)
+#' L <- get_L(p = 20, range = 2.0, smoothness = 1.5)
+#' dat <- matern_data_gen(seed_val = 1, n = 20, p = 20, pi_0 = 0.1, L = L)
 #' @importFrom stats rnorm var
 #' @export
-matern.data.gen <- function(
+matern_data_gen <- function(
     seed_val,
     n,
     p,
@@ -64,7 +64,7 @@ matern.data.gen <- function(
 ) {
 
   if (is.null(L)) {
-    stop("The L matrix must be provided. Use get.L() to generate it first.")
+    stop("The L matrix must be provided. Use get_L() to generate it first.")
   }
 
   set.seed(seed_val)
@@ -115,7 +115,7 @@ matern.data.gen <- function(
 
 # --- INTERNAL HELPERS (Not Exported) ---
 
-Matern_Internal <- function(d, range, smoothness, phi) {
+matern_internal <- function(d, range, smoothness, phi) {
   alpha <- 1 / range
   nu <- smoothness
   d <- d * alpha

@@ -4,8 +4,8 @@
 setup_small_problem <- function() {
     p <- 100
     n <- 30
-    L <- get.L(p = p, range = 2.0, smoothness = 1.5)
-    dat <- matern.data.gen(
+    L <- get_L(p = p, range = 2.0, smoothness = 1.5)
+    dat <- matern_data_gen(
         seed_val = 42, n = n, p = p, pi_0 = 0.05,
         L = L, sd_beta = 4, SNR = 2
     )

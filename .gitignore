@@ -19,3 +19,5 @@ Thumbs.db
 # Build outputs
 *.tar.gz
 AGENTS.md
+/doc/
+/Meta/

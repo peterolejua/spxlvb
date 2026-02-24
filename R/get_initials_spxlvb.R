@@ -22,12 +22,12 @@
 #' set.seed(1)
 #' X <- matrix(rnorm(30 * 20), 30, 20)
 #' Y <- rnorm(30)
-#' init <- get.initials.spxlvb(X = X, Y = Y)
+#' init <- get_initials_spxlvb(X = X, Y = Y)
 #' }
 #' @importFrom glmnet cv.glmnet
 #' @importFrom stats predict coef
 #' @export
-get.initials.spxlvb <- function(
+get_initials_spxlvb <- function(
   X, # design matrix
   Y, # response vector
   mu_0 = NULL, # Variational Normal mean estimated beta coefficient from lasso, posterior expectation of bj|sj = 1

@@ -1,13 +1,13 @@
-# Smoke tests for get.initials.spxlvb
+# Smoke tests for get_initials_spxlvb
 
-test_that("get.initials.spxlvb returns all expected components", {
+test_that("get_initials_spxlvb returns all expected components", {
     set.seed(123)
     p <- 100
     n <- 30
     X <- matrix(rnorm(n * p), n, p)
     Y <- rnorm(n)
 
-    initials <- get.initials.spxlvb(X = X, Y = Y)
+    initials <- get_initials_spxlvb(X = X, Y = Y)
 
     # All list elements exist
     expect_true(all(c(
@@ -36,7 +36,7 @@ test_that("get.initials.spxlvb returns all expected components", {
     expect_true(all(initials$update_order < p))
 })
 
-test_that("get.initials.spxlvb respects pre-supplied values", {
+test_that("get_initials_spxlvb respects pre-supplied values", {
     set.seed(456)
     p <- 50
     n <- 20
@@ -46,7 +46,7 @@ test_that("get.initials.spxlvb respects pre-supplied values", {
     custom_omega <- rep(0.5, p)
     custom_tau <- 2.0
 
-    initials <- get.initials.spxlvb(
+    initials <- get_initials_spxlvb(
         X = X, Y = Y,
         omega_0 = custom_omega,
         tau_e = custom_tau,

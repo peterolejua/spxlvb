@@ -7,14 +7,17 @@ setup_cv_problem <- function() {
     list(X = X, Y = Y)
 }
 
-test_that("cv.spxlvb 1D returns correct structure", {
+test_that("cv_spxlvb 1D returns correct structure (deprecated)", {
     dat <- setup_cv_problem()
     alpha_grid <- c(100, 1000)
 
-    res <- cv.spxlvb(
-        k = 3, X = dat$X, Y = dat$Y,
-        alpha_prior_precision_grid = alpha_grid,
-        max_iter = 30, tol = 1e-2, parallel = FALSE, verbose = FALSE
+    res <- expect_warning(
+        cv_spxlvb(
+            k = 3, X = dat$X, Y = dat$Y,
+            alpha_prior_precision_grid = alpha_grid,
+            max_iter = 30, tol = 1e-2, parallel = FALSE, verbose = FALSE
+        ),
+        "deprecated"
     )
 
     expect_type(res, "list")
@@ -27,16 +30,19 @@ test_that("cv.spxlvb 1D returns correct structure", {
     expect_null(res$b_prior_precision_grid_opt)
 })
 
-test_that("cv.spxlvb 2D returns correct structure", {
+test_that("cv_spxlvb 2D returns correct structure (deprecated)", {
     dat <- setup_cv_problem()
     alpha_grid <- c(100, 1000)
     b_grid <- c(1, 5)
 
-    res <- cv.spxlvb(
-        k = 3, X = dat$X, Y = dat$Y,
-        alpha_prior_precision_grid = alpha_grid,
-        b_prior_precision_grid = b_grid,
-        max_iter = 30, tol = 1e-2, parallel = FALSE, verbose = FALSE
+    res <- expect_warning(
+        cv_spxlvb(
+            k = 3, X = dat$X, Y = dat$Y,
+            alpha_prior_precision_grid = alpha_grid,
+            b_prior_precision_grid = b_grid,
+            max_iter = 30, tol = 1e-2, parallel = FALSE, verbose = FALSE
+        ),
+        "deprecated"
     )
 
     expect_type(res, "list")
@@ -53,14 +59,17 @@ test_that("cv.spxlvb 2D returns correct structure", {
     expect_true(res$b_prior_precision_grid_opt %in% b_grid)
 })
 
-test_that("cv.spxlvb.fit 1D returns fit object", {
+test_that("cv_spxlvb_fit 1D returns fit object (deprecated)", {
     dat <- setup_cv_problem()
     alpha_grid <- c(100, 1000)
 
-    res <- cv.spxlvb.fit(
-        k = 3, X = dat$X, Y = dat$Y,
-        alpha_prior_precision_grid = alpha_grid,
-        max_iter = 30, tol = 1e-2, parallel = FALSE, verbose = FALSE
+    res <- expect_warning(
+        cv_spxlvb_fit(
+            k = 3, X = dat$X, Y = dat$Y,
+            alpha_prior_precision_grid = alpha_grid,
+            max_iter = 30, tol = 1e-2, parallel = FALSE, verbose = FALSE
+        ),
+        "deprecated"
     )
 
     expect_type(res, "list")
@@ -70,16 +79,19 @@ test_that("cv.spxlvb.fit 1D returns fit object", {
     expect_equal(length(res$fit_spxlvb$beta), ncol(dat$X) + 1)
 })
 
-test_that("cv.spxlvb.fit 2D returns fit object with both optimal hyperparameters", {
+test_that("cv_spxlvb_fit 2D returns fit object with both optimal hyperparameters (deprecated)", {
     dat <- setup_cv_problem()
     alpha_grid <- c(100, 1000)
     b_grid <- c(1, 5)
 
-    res <- cv.spxlvb.fit(
-        k = 3, X = dat$X, Y = dat$Y,
-        alpha_prior_precision_grid = alpha_grid,
-        b_prior_precision_grid = b_grid,
-        max_iter = 30, tol = 1e-2, parallel = FALSE, verbose = FALSE
+    res <- expect_warning(
+        cv_spxlvb_fit(
+            k = 3, X = dat$X, Y = dat$Y,
+            alpha_prior_precision_grid = alpha_grid,
+            b_prior_precision_grid = b_grid,
+            max_iter = 30, tol = 1e-2, parallel = FALSE, verbose = FALSE
+        ),
+        "deprecated"
     )
 
     expect_type(res, "list")
@@ -90,14 +102,17 @@ test_that("cv.spxlvb.fit 2D returns fit object with both optimal hyperparameters
     expect_equal(length(res$fit_spxlvb$beta), ncol(dat$X) + 1)
 })
 
-test_that("cv.spxlvb rejects b_prior_precision_grid with fewer than 2 values", {
+test_that("cv_spxlvb rejects b_prior_precision_grid with fewer than 2 values (deprecated)", {
     dat <- setup_cv_problem()
-    expect_error(
-        cv.spxlvb(
-            k = 3, X = dat$X, Y = dat$Y,
-            b_prior_precision_grid = 1,
-            parallel = FALSE, verbose = FALSE
+    expect_warning(
+        expect_error(
+            cv_spxlvb(
+                k = 3, X = dat$X, Y = dat$Y,
+                b_prior_precision_grid = 1,
+                parallel = FALSE, verbose = FALSE
+            ),
+            "at least two values"
         ),
-        "at least two values"
+        "deprecated"
     )
 })

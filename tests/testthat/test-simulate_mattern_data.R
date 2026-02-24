@@ -1,8 +1,8 @@
 # Smoke tests for data generation utilities
 
-test_that("get.L returns valid Cholesky factor", {
+test_that("get_L returns valid Cholesky factor", {
     p <- 50
-    L <- get.L(p = p, range = 2.0, smoothness = 1.5)
+    L <- get_L(p = p, range = 2.0, smoothness = 1.5)
 
     expect_true(is.matrix(L))
     expect_equal(dim(L), c(p, p))
@@ -14,13 +14,13 @@ test_that("get.L returns valid Cholesky factor", {
     expect_equal(attr(L, "smoothness"), 1.5)
 })
 
-test_that("matern.data.gen produces correct dimensions (p >> n)", {
+test_that("matern_data_gen produces correct dimensions (p >> n)", {
     p <- 100
     n <- 30
     pi_0 <- 0.10
 
-    L <- get.L(p = p, range = 2.0, smoothness = 1.5)
-    dat <- matern.data.gen(
+    L <- get_L(p = p, range = 2.0, smoothness = 1.5)
+    dat <- matern_data_gen(
         seed_val = 42, n = n, p = p, pi_0 = pi_0,
         L = L, sd_beta = 1, SNR = 2,
         n_test = 20, n_validation = 15
@@ -46,9 +46,9 @@ test_that("matern.data.gen produces correct dimensions (p >> n)", {
     expect_equal(length(dat$Y_validation), 15)
 })
 
-test_that("matern.data.gen errors without L matrix", {
+test_that("matern_data_gen errors without L matrix", {
     expect_error(
-        matern.data.gen(seed_val = 1, n = 10, p = 20, pi_0 = 0.1),
+        matern_data_gen(seed_val = 1, n = 10, p = 20, pi_0 = 0.1),
         "L matrix must be provided"
     )
 })

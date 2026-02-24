@@ -23,8 +23,8 @@ convergence speed and calibration.
 - Spike-and-slab prior for automatic variable selection
 - LASSO-based initialisation via `glmnet`
 - ELBO and chi-squared convergence criteria
-- Cross-validation (`cv.spxlvb.fit`) and 2-D grid search
-  (`grid.search.spxlvb.fit`) for hyperparameter tuning
+- Cross-validation (`cv_spxlvb_fit`) and 2-D grid search
+  (`grid_search_spxlvb_fit`) for hyperparameter tuning
 - C++ backend via `RcppArmadillo` for fast linear algebra
 - Parallel evaluation of tuning grids via `foreach`
 
@@ -101,7 +101,7 @@ tuning — and empirically at least as accurate (see the paper appendix
 for details):
 
 ```r
-fit <- grid.search.spxlvb.fit(
+fit <- grid_search_spxlvb_fit(
   X = X, Y = Y,
   alpha_prior_precision_grid = c(0, 30, 300, 3000, 30000),
   b_prior_precision_grid = c(0.01, 0.1, 1, 10),
@@ -109,7 +109,7 @@ fit <- grid.search.spxlvb.fit(
 )
 ```
 
-Cross-validation is also available via `cv.spxlvb.fit()`, which
+Cross-validation is also available via `cv_spxlvb_fit()`, which
 supports both 1-D search over `alpha_prior_precision` and 2-D search
 over `(alpha_prior_precision, b_prior_precision)`. See the vignette
 for details.

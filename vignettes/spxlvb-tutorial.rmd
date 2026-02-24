@@ -27,6 +27,17 @@ The name "parameter explosion" comes from the introduction of **p+1 expansion pa
 
 The key arguments controlling the explosion are `mu_alpha` (prior means, length $p+1$) and `alpha_prior_precision` (shared prior precision, scalar), while `b_prior_precision` (length $p$) controls the spike-and-slab slab width separately. When `intercept = TRUE`, the intercept is computed after fitting on centered/scaled data --- it does not add a column to `X` or change the parameter dimensions.
 
+## Package Architecture
+
+The figure below shows how the package functions relate to each
+other. Blue nodes are user-facing (exported) functions, orange
+nodes are the C++ backend, and gray dashed nodes are deprecated
+wrappers that forward to `tune_spxlvb()`.
+
+```{r flowchart, echo=FALSE, out.width="100%", fig.cap="Function dependency graph for the spxlvb package."}
+knitr::include_graphics("flowchart.png")
+```
+
 # Installation
 
 You can install the development version of spxlvb from GitHub:
@@ -59,10 +70,10 @@ p <- 1000 # Number of predictors
 pi_0 <- 0.10 # Sparsity level (5% of predictors are active)
 
 # Pre-calculate the Cholesky factor for a Matérn correlation matrix
-L_mat <- get.L(p = p, range = 2.0, smoothness = 1.5)
+L_mat <- get_L(p = p, range = 2.0, smoothness = 1.5)
 
 # Generate the data
-sim_data <- matern.data.gen(
+sim_data <- matern_data_gen(
   seed_val = 42,
   n = n,
   p = p,
@@ -85,7 +96,7 @@ To fit the model, we can use the `spxlvb` function directly. By default, it will
 
 
 ```{r}
-initials <- get.initials.spxlvb(
+initials <- get_initials_spxlvb(
   X = sim_data$X,
   Y = sim_data$Y,
   mu_0 = NULL,
@@ -139,13 +150,13 @@ For optimal predictive calibration, you can tune the hyperparameters using eithe
 
 ### Cross-Validation
 
-Alternatively, if an independent validation set is not available, you can use $k$-fold cross-validation to select the optimal expansion prior precision ($\alpha$) by minimizing the out-of-sample Mean Squared Error (MSE) across folds. The \code{cv.spxlvb.fit} function automates this process and returns the final model refitted on the full dataset:
+Alternatively, if an independent validation set is not available, you can use $k$-fold cross-validation to select the optimal expansion prior precision ($\alpha$) by minimizing the out-of-sample Mean Squared Error (MSE) across folds. The \code{cv_spxlvb_fit} function automates this process and returns the final model refitted on the full dataset:
 
 ```{r}
 # Define search grids
 alpha_prior_precision_grid <- c(0, 5, 10, 100, 1000)
 # Perform 5-fold cross-validation
-cv_fit <- cv.spxlvb.fit(
+cv_fit <- cv_spxlvb_fit(
   k = 5,
   X = sim_data$X,
   Y = sim_data$Y,
@@ -174,14 +185,14 @@ cv_fit$CVE
 
 ### Grid Search
 
-The \code{grid.search.spxlvb.fit} function evaluates models over a 2D grid based on the Evidence Lower Bound (ELBO) or a provided validation set.
+The \code{grid_search_spxlvb_fit} function evaluates models over a 2D grid based on the Evidence Lower Bound (ELBO) or a provided validation set.
 
 ```{r}
 # Define search grids
 alpha_prior_precision_grid <- c(0, 5, 10, 100, 1000)
 b_prior_precision_grid <- c(0.1, 0.5, 1, 1.5)
 
-opt_fit <- grid.search.spxlvb.fit(
+opt_fit <- grid_search_spxlvb_fit(
   X = sim_data$X,
   Y = sim_data$Y,
   X_validation = sim_data$X_validation,
