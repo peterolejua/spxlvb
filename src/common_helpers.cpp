@@ -48,15 +48,14 @@ Rcpp::List compute_elbo_cpp(
   double bigurly = resid_term + sum_taub_inside + alpha_penalty;
   double datafit_term = -0.5 * tau_e * bigurly;
 
-  double term_norm = 0.5 * (arma::accu(arma::log(tau_e * tau_b)));
+  double sum_taub = 0.5 * arma::accu(arma::log(tau_e * tau_b));
+  double sum_taua = 0.5 * (p + 1) * std::log(tau_e * tau_alpha);
+  double term_norm = sum_taub + sum_taua;
 
   double logodds = std::log(pi_fixed / (1.0 - pi_fixed));
   double pi_term = logodds * arma::accu(omega);
 
   double elbo = sum_term_a + sum_term_b + datafit_term + term_norm + pi_term;
-
-  double sum_taua = (p + 1) * std::log(tau_e * tau_alpha) / 2.0;
-  double sum_taub = arma::accu(arma::log(tau_e * tau_b)) / 2.0;
   double SSE = tau_e * (Y2 - 2.0 * t_YW + t_W2);
 
   return Rcpp::List::create(
@@ -115,7 +114,8 @@ double compute_elbo_scalar(
   double alpha_penalty = tau_alpha * arma::dot(alpha_diff, alpha_diff);
   double datafit_term = -0.5 * tau_e * (resid_term + sum_taub_inside + alpha_penalty);
 
-  double term_norm = 0.5 * arma::accu(log_tau_e_tau_b);
+  double term_norm = 0.5 * arma::accu(log_tau_e_tau_b)
+                   + 0.5 * (p + 1) * std::log(tau_e * tau_alpha);
 
   double logodds = std::log(pi_fixed / (1.0 - pi_fixed));
   double pi_term = logodds * arma::accu(omega);
