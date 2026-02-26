@@ -29,7 +29,10 @@ tune_spxlvb(
   seed = 12376,
   verbose = TRUE,
   parallel = TRUE,
-  save_history = FALSE
+  update_pi = FALSE,
+  save_history = FALSE,
+  selection_elbo = c("expanded_model", "original_model"),
+  disable_global_alpha = FALSE
 )
 }
 \arguments{
@@ -130,8 +133,29 @@ Default: 100.}
 \code{doParallel::registerDoParallel()}) must be registered.
 Default: \code{TRUE}.}
 
+\item{update_pi}{Logical. If \code{TRUE}, treat \eqn{\pi} as a variational
+parameter (see \code{\link{spxlvb}}). Default: \code{FALSE}.}
+
 \item{save_history}{Logical. Store per-iteration parameter histories
 in the final fit. Default: \code{FALSE}.}
+
+\item{selection_elbo}{Character string controlling which ELBO is used
+for grid selection when \code{criterion = "elbo"}. One of:
+\describe{
+\item{\code{"expanded_model"} (default)}{The ELBO of the expanded
+model, including all expansion parameter (\eqn{\alpha}) terms:
+prior normalisation, entropy, and variance penalty.}
+\item{\code{"original_model"}}{The ELBO of the original
+(non-expanded) model, with all \eqn{\alpha}-related terms
+removed. This ELBO depends only on the data fit, spike-and-slab
+prior, and the variational entropy of \eqn{(b, s)}.}
+}
+Ignored when \code{criterion} is \code{"cv"} or
+\code{"validation"} (which select by MSPE, not ELBO).}
+
+\item{disable_global_alpha}{Logical. If \code{TRUE}, skip the global
+\eqn{\alpha_{p+1}} rescaling step (see \code{\link{spxlvb}}).
+Default: \code{FALSE}.}
 }
 \value{
 A list with elements:

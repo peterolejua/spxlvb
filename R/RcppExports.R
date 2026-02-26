@@ -5,7 +5,7 @@ compute_elbo_cpp <- function(mu, sigma, omega, tau_b, mu_alpha, Y2, t_YW, t_W2, 
     .Call(`_spxlvb_compute_elbo_cpp`, mu, sigma, omega, tau_b, mu_alpha, Y2, t_YW, t_W2, tau_alpha, tau_e, pi_fixed)
 }
 
-run_vb_updates_cpp <- function(X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history = TRUE, convergence_method = 0L) {
-    .Call(`_spxlvb_run_vb_updates_cpp`, X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history, convergence_method)
+run_vb_updates_cpp <- function(X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history = TRUE, convergence_method = 0L, update_pi = FALSE, elbo_offset = 0.0, disable_global_alpha = FALSE) {
+    .Call(`_spxlvb_run_vb_updates_cpp`, X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history, convergence_method, update_pi, elbo_offset, disable_global_alpha)
 }
 

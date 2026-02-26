@@ -22,6 +22,9 @@ spxlvb(
   tol = 0.001,
   save_history = TRUE,
   convergence = c("elbo", "chisq", "entropy"),
+  update_pi = FALSE,
+  full_elbo = FALSE,
+  disable_global_alpha = FALSE,
   seed = 12376
 )
 }
@@ -90,6 +93,26 @@ per-coordinate Bernoulli entropy of the inclusion probabilities
 falls below \code{tol}, following the criterion used by
 Ray and Szabo (2022).
 See Appendix for a comparison of the three criteria.}
+
+\item{update_pi}{Logical. If \code{TRUE}, treat \eqn{\pi} as a variational
+parameter with \eqn{q(\pi) = \text{Beta}(\tilde{c}_\pi, \tilde{d}_\pi)},
+updated each iteration via the conjugate Beta--Bernoulli update.
+If \code{FALSE} (default), \eqn{\pi} is fixed at
+\eqn{c_\pi / (c_\pi + d_\pi)}.}
+
+\item{full_elbo}{Logical. If \code{TRUE}, include all normalizing constants
+in the ELBO (likelihood normalization, \eqn{2\pi} factors, Gaussian
+entropy constants). These terms are independent of variational parameters
+and tuned hyperparameters, so they cannot affect hyperparameter selection.
+However, they shift the absolute ELBO level, which can affect the
+relative-change convergence criterion. Default: \code{FALSE}.}
+
+\item{disable_global_alpha}{Logical. If \code{TRUE}, skip the global
+\eqn{\alpha_{p+1}} rescaling step after each full coordinate sweep.
+Per-coordinate \eqn{\alpha_j} rescaling still occurs. This reduces
+the parameter explosion to coordinate-level only and is used for
+ablation studies (see the paper Appendix, Section C.2.1).
+Default: \code{FALSE}.}
 
 \item{seed}{Integer seed for cross-validation in glmnet. Default is 12376.}
 }

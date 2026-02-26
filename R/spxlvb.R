@@ -49,6 +49,23 @@
 #'   falls below \code{tol}, following the criterion used by
 #'   Ray and Szabo (2022).
 #'   See Appendix for a comparison of the three criteria.
+#' @param update_pi Logical. If \code{TRUE}, treat \eqn{\pi} as a variational
+#'   parameter with \eqn{q(\pi) = \text{Beta}(\tilde{c}_\pi, \tilde{d}_\pi)},
+#'   updated each iteration via the conjugate Beta--Bernoulli update.
+#'   If \code{FALSE} (default), \eqn{\pi} is fixed at
+#'   \eqn{c_\pi / (c_\pi + d_\pi)}.
+#' @param full_elbo Logical. If \code{TRUE}, include all normalizing constants
+#'   in the ELBO (likelihood normalization, \eqn{2\pi} factors, Gaussian
+#'   entropy constants). These terms are independent of variational parameters
+#'   and tuned hyperparameters, so they cannot affect hyperparameter selection.
+#'   However, they shift the absolute ELBO level, which can affect the
+#'   relative-change convergence criterion. Default: \code{FALSE}.
+#' @param disable_global_alpha Logical. If \code{TRUE}, skip the global
+#'   \eqn{\alpha_{p+1}} rescaling step after each full coordinate sweep.
+#'   Per-coordinate \eqn{\alpha_j} rescaling still occurs. This reduces
+#'   the parameter explosion to coordinate-level only and is used for
+#'   ablation studies (see the paper Appendix, Section C.2.1).
+#'   Default: \code{FALSE}.
 #' @param seed Integer seed for cross-validation in glmnet. Default is 12376.
 #' @return A list with posterior summaries including estimated coefficients (`mu`),
 #' inclusion probabilities (`omega`), intercept (if applicable), alpha path, convergence status, etc.
@@ -111,6 +128,9 @@ spxlvb <- function(
   tol = 1e-3,
   save_history = TRUE,
   convergence = c("elbo", "chisq", "entropy"),
+  update_pi = FALSE,
+  full_elbo = FALSE,
+  disable_global_alpha = FALSE,
   seed = 12376 # seed for cv.glmnet initials
 ) {
   convergence <- match.arg(convergence)
@@ -154,6 +174,23 @@ spxlvb <- function(
   update_order <- initials$update_order
 
   # match internal function call and generate list of arguments
+  elbo_offset <- 0.0
+  if (full_elbo) {
+    n <- nrow(X_cs)
+    pi_fixed <- c_pi_0 / (c_pi_0 + d_pi_0)
+    elbo_offset <- -n / 2 * log(2 * pi) +
+      n / 2 * log(tau_e) +
+      p / 2 +
+      (p + 1) / 2
+    if (!update_pi) {
+      elbo_offset <- elbo_offset +
+        p * log(1 - pi_fixed) +
+        (c_pi_0 - 1) * log(pi_fixed) +
+        (d_pi_0 - 1) * log(1 - pi_fixed) -
+        lbeta(c_pi_0, d_pi_0)
+    }
+  }
+
   arg <- list(
     X_cs,
     Y_c,
@@ -169,7 +206,10 @@ spxlvb <- function(
     max_iter,
     tol,
     save_history,
-    convergence_method
+    convergence_method,
+    update_pi,
+    elbo_offset,
+    disable_global_alpha
   )
   fn <- "run_vb_updates_cpp"
 
@@ -211,6 +251,9 @@ spxlvb <- function(
     elbo = as.numeric(approximate_posterior$elbo_history)[length(as.numeric(
       approximate_posterior$elbo_history
     ))],
+    elbo_original = as.numeric(
+      approximate_posterior$elbo_original_history
+    )[length(as.numeric(approximate_posterior$elbo_original_history))],
     tau_alpha = alpha_prior_precision / tau_e,
     tau_b_0 = b_prior_precision / tau_e,
     tau_b = approximate_posterior$tau_b,
@@ -225,6 +268,8 @@ spxlvb <- function(
     omega = as.numeric(approximate_posterior$omega[1:p]),
     beta = beta,
     update_order = update_order,
+    c_pi_tilde = approximate_posterior$c_pi_tilde,
+    d_pi_tilde = approximate_posterior$d_pi_tilde,
     approximate_posterior = approximate_posterior
   )
   return(wrapper_results)

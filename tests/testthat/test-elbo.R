@@ -91,25 +91,19 @@ test_that("ELBO components sum to the reported total", {
         Y2, t_YW, t_W2, tau_alpha_internal, tau_e, pi_fixed
     )
 
-    reconstructed <- elbo_parts$Sum_a + elbo_parts$Sum_b +
-        elbo_parts$Datafit + elbo_parts$term_norm + elbo_parts$pi_term
+    reconstructed <- elbo_parts$slab_entropy + elbo_parts$spike_entropy +
+        elbo_parts$data_fit + elbo_parts$slab_prior +
+        elbo_parts$alpha_prior + elbo_parts$spike_prior
 
     expect_equal(
         elbo_parts$ELBO, reconstructed,
         tolerance = 1e-8,
-        info = "ELBO should equal sum of its component terms"
-    )
-
-    expect_equal(
-        elbo_parts$sum_taua + elbo_parts$sum_taub,
-        elbo_parts$term_norm,
-        tolerance = 1e-10,
-        info = "term_norm should equal sum_taua + sum_taub"
+        info = "ELBO should equal sum of its 6 component terms"
     )
 
     expect_true(
-        elbo_parts$sum_taua > 0,
-        info = "Alpha prior normalization (sum_taua) should be positive"
+        elbo_parts$alpha_prior > 0,
+        info = "Alpha prior (normalization + penalty) should be positive"
     )
 })
 
@@ -160,18 +154,20 @@ test_that("ELBO computed in R matches C++ compute_elbo_cpp", {
     sum_b_r <- -sum((1 - omega) * (0.5 * log_tau_e_tau_b + l_omega_m1))
 
     inside <- omega * (mu^2 + sigma2) + (1 - omega) / (tau_e * tau_b)
-    sum_taub_inside <- sum(tau_b * inside)
+    slab_penalty_r <- sum(tau_b * inside)
     resid_term <- Y2 - 2 * t_YW + t_W2
     alpha_penalty <- tau_alpha * sum((1 - mu_alpha)^2)
-    datafit_r <- -0.5 * tau_e * (resid_term + sum_taub_inside + alpha_penalty)
 
-    term_norm_r <- 0.5 * sum(log_tau_e_tau_b) +
-        0.5 * (p + 1) * log(tau_e * tau_alpha)
+    data_fit_r <- -0.5 * tau_e * resid_term
+    slab_prior_r <- 0.5 * sum(log_tau_e_tau_b) - 0.5 * tau_e * slab_penalty_r
+    alpha_prior_r <- 0.5 * (p + 1) * log(tau_e * tau_alpha) -
+        0.5 * tau_e * alpha_penalty
 
     logodds <- log(pi_fixed / (1 - pi_fixed))
-    pi_term_r <- logodds * sum(omega)
+    spike_prior_r <- logodds * sum(omega)
 
-    elbo_r <- sum_a_r + sum_b_r + datafit_r + term_norm_r + pi_term_r
+    elbo_r <- sum_a_r + sum_b_r + data_fit_r + slab_prior_r +
+        alpha_prior_r + spike_prior_r
 
     elbo_cpp <- compute_elbo_cpp(
         mu, sigma, omega, tau_b, mu_alpha,

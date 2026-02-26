@@ -40,36 +40,33 @@ Rcpp::List compute_elbo_cpp(
 
   arma::vec inside = omega % (arma::square(mu) + sigma2) +
     one_minus_omega % (1.0 / (tau_e * tau_b));
-  arma::vec taub_times_inside = tau_b % inside;
-  double sum_taub_inside = arma::accu(taub_times_inside);
+  double slab_penalty = arma::accu(tau_b % inside);
 
   double resid_term = Y2 - 2.0 * t_YW + t_W2;
-
   double alpha_penalty = tau_alpha * arma::accu(arma::square(1.0 - mu_alpha));
-  double bigurly = resid_term + sum_taub_inside + alpha_penalty;
-  double datafit_term = -0.5 * tau_e * bigurly;
 
-  double sum_taub = 0.5 * arma::accu(arma::log(tau_e * tau_b));
-  double sum_taua = 0.5 * (p + 1) * std::log(tau_e * tau_alpha);
-  double term_norm = sum_taub + sum_taua;
+  double data_fit = -0.5 * tau_e * resid_term;
+
+  double slab_prior = 0.5 * arma::accu(arma::log(tau_e * tau_b))
+                    - 0.5 * tau_e * slab_penalty;
+
+  double alpha_prior = 0.5 * (p + 1) * std::log(tau_e * tau_alpha)
+                     - 0.5 * tau_e * alpha_penalty;
 
   double logodds = std::log(pi_fixed / (1.0 - pi_fixed));
-  double pi_term = logodds * arma::accu(omega);
+  double spike_prior = logodds * arma::accu(omega);
 
-  double elbo = sum_term_a + sum_term_b + datafit_term + term_norm + pi_term;
-  double SSE = tau_e * (Y2 - 2.0 * t_YW + t_W2);
+  double elbo = sum_term_a + sum_term_b +
+                data_fit + slab_prior + alpha_prior + spike_prior;
 
   return Rcpp::List::create(
-    Rcpp::Named("ELBO")      = elbo,
-    Rcpp::Named("Sum_a")     = sum_term_a,
-    Rcpp::Named("Sum_b")     = sum_term_b,
-    Rcpp::Named("Datafit")   = datafit_term,
-    Rcpp::Named("Resid_term")= resid_term,
-    Rcpp::Named("sum_taua")  = sum_taua,
-    Rcpp::Named("sum_taub")  = sum_taub,
-    Rcpp::Named("SSE")       = SSE,
-    Rcpp::Named("term_norm") = term_norm,
-    Rcpp::Named("pi_term")   = pi_term
+    Rcpp::Named("ELBO")           = elbo,
+    Rcpp::Named("slab_entropy")   = sum_term_a,
+    Rcpp::Named("spike_entropy")  = sum_term_b,
+    Rcpp::Named("data_fit")       = data_fit,
+    Rcpp::Named("slab_prior")     = slab_prior,
+    Rcpp::Named("alpha_prior")    = alpha_prior,
+    Rcpp::Named("spike_prior")    = spike_prior
   );
 }
 
@@ -107,21 +104,26 @@ double compute_elbo_scalar(
 
   arma::vec inside = omega % (arma::square(mu) + sigma2) +
     one_minus_omega % (1.0 / (tau_e * tau_b));
-  double sum_taub_inside = arma::accu(tau_b % inside);
+  double slab_penalty = arma::accu(tau_b % inside);
 
   double resid_term = Y2 - 2.0 * t_YW + t_W2;
 
   arma::vec alpha_diff = 1.0 - mu_alpha;
   double alpha_penalty = tau_alpha * arma::dot(alpha_diff, alpha_diff);
-  double datafit_term = -0.5 * tau_e * (resid_term + sum_taub_inside + alpha_penalty);
 
-  double term_norm = 0.5 * arma::accu(log_tau_e_tau_b)
-                   + 0.5 * (p + 1) * std::log(tau_e * tau_alpha);
+  double data_fit = -0.5 * tau_e * resid_term;
+
+  double slab_prior = 0.5 * arma::accu(log_tau_e_tau_b)
+                    - 0.5 * tau_e * slab_penalty;
+
+  double alpha_prior = 0.5 * (p + 1) * std::log(tau_e * tau_alpha)
+                     - 0.5 * tau_e * alpha_penalty;
 
   double logodds = std::log(pi_fixed / (1.0 - pi_fixed));
-  double pi_term = logodds * arma::accu(omega);
+  double spike_prior = logodds * arma::accu(omega);
 
-  return sum_term_a + sum_term_b + datafit_term + term_norm + pi_term;
+  return sum_term_a + sum_term_b +
+         data_fit + slab_prior + alpha_prior + spike_prior;
 }
 
 double sigmoid_cpp(const double &x) {

@@ -24,7 +24,10 @@ Rcpp::List run_vb_updates_cpp(
     int max_iter,
     double tol,
     bool save_history = true,
-    int convergence_method = 0
+    int convergence_method = 0,
+    bool update_pi = false,
+    double elbo_offset = 0.0,
+    bool disable_global_alpha = false
 ) {
   int n = X.n_rows;
   int p = X.n_cols;
@@ -58,11 +61,13 @@ Rcpp::List run_vb_updates_cpp(
   }
 
   double pi_fixed = c_pi / (c_pi + d_pi);
-  double E_logit_pi = std::log(pi_fixed) - std::log(1 - pi_fixed);
+  double E_logit_pi = update_pi
+    ? R::digamma(c_pi) - R::digamma(d_pi)
+    : std::log(pi_fixed) - std::log(1.0 - pi_fixed);
 
   std::vector<arma::vec> mu_hist, omega_hist, sigma_hist;
   std::vector<arma::vec> tau_b_hist, mu_alpha_hist, alpha_hist;
-  std::vector<double> conv_hist, elbo_hist;
+  std::vector<double> conv_hist, elbo_hist, elbo_original_hist;
 
   if (save_history) {
     mu_hist.reserve(max_iter);
@@ -74,6 +79,7 @@ Rcpp::List run_vb_updates_cpp(
   }
   conv_hist.reserve(max_iter);
   elbo_hist.reserve(max_iter);
+  elbo_original_hist.reserve(max_iter);
 
   bool converged = false;
   int last_iter = 0;
@@ -191,22 +197,33 @@ Rcpp::List run_vb_updates_cpp(
     double t_W2 = var_W + arma::dot(W, W);
 
     int idx_p1 = p;
-    double optimal_alpha_p1 = (t_YW + tau_alpha * mu_alpha(idx_p1)) /
-                              (t_W2 + tau_alpha);
-    alpha_j_optimal(idx_p1) = optimal_alpha_p1;
+    if (!disable_global_alpha) {
+      double optimal_alpha_p1 = (t_YW + tau_alpha * mu_alpha(idx_p1)) /
+                                (t_W2 + tau_alpha);
+      alpha_j_optimal(idx_p1) = optimal_alpha_p1;
 
-    double precision_alpha_p1 = tau_e * (t_W2 + tau_alpha);
-    double var_alpha_p1 = 1.0 / precision_alpha_p1;
-    alpha_log_var_sum += std::log(var_alpha_p1);
-    alpha_var_sum += var_alpha_p1;
+      double precision_alpha_p1 = tau_e * (t_W2 + tau_alpha);
+      double var_alpha_p1 = 1.0 / precision_alpha_p1;
+      alpha_log_var_sum += std::log(var_alpha_p1);
+      alpha_var_sum += var_alpha_p1;
 
-    mu        *= optimal_alpha_p1;
-    sigma     *= std::fabs(optimal_alpha_p1);
-    tau_b     /= (optimal_alpha_p1 * optimal_alpha_p1);
-    mu_alpha(idx_p1) = 1.0 - (optimal_alpha_p1 - mu_alpha(idx_p1));
+      mu        *= optimal_alpha_p1;
+      sigma     *= std::fabs(optimal_alpha_p1);
+      tau_b     /= (optimal_alpha_p1 * optimal_alpha_p1);
+      mu_alpha(idx_p1) = 1.0 - (optimal_alpha_p1 - mu_alpha(idx_p1));
 
-    W         *= optimal_alpha_p1;
-    var_W     *= optimal_alpha_p1 * optimal_alpha_p1;
+      W         *= optimal_alpha_p1;
+      var_W     *= optimal_alpha_p1 * optimal_alpha_p1;
+    }
+
+    double c_pi_tilde = c_pi;
+    double d_pi_tilde = d_pi;
+    if (update_pi) {
+      double sum_omega = arma::accu(omega);
+      c_pi_tilde = c_pi + sum_omega;
+      d_pi_tilde = d_pi + (p - sum_omega);
+      E_logit_pi = R::digamma(c_pi_tilde) - R::digamma(d_pi_tilde);
+    }
 
     t_YW = arma::dot(W, Y);
     t_W2 = var_W + arma::dot(W, W);
@@ -228,16 +245,54 @@ Rcpp::List run_vb_updates_cpp(
       }
     }
 
+    // Exploded ELBO: 6 terms from compute_elbo_scalar (data_fit, slab_prior,
+    // alpha_prior, spike_prior, slab_entropy, spike_entropy) plus
+    // alpha_entropy and alpha_var_penalty added below.
     double current_elbo = compute_elbo_scalar(
       mu, sigma, omega, tau_b, mu_alpha,
       Y2, t_YW, t_W2, tau_alpha, tau_e, pi_fixed
     );
 
+    double alpha_prior = 0.0;
+    double alpha_entropy = 0.0;
+    double alpha_var_penalty = 0.0;
     if (tau_alpha > 0.0) {
-      double alpha_entropy = 0.5 * alpha_log_var_sum;
-      double alpha_var_penalty = -0.5 * tau_e * tau_alpha * alpha_var_sum;
+      arma::vec alpha_diff = 1.0 - mu_alpha;
+      alpha_prior = 0.5 * (p + 1) * std::log(tau_e * tau_alpha)
+                  - 0.5 * tau_e * tau_alpha * arma::dot(alpha_diff, alpha_diff);
+      alpha_entropy = 0.5 * alpha_log_var_sum;
+      alpha_var_penalty = -0.5 * tau_e * tau_alpha * alpha_var_sum;
       current_elbo += alpha_entropy + alpha_var_penalty;
     }
+
+    if (update_pi) {
+      double sum_omega = arma::accu(omega);
+      double psi_c = R::digamma(c_pi_tilde);
+      double psi_d = R::digamma(d_pi_tilde);
+      double psi_cd = R::digamma(c_pi_tilde + d_pi_tilde);
+      double E_log_pi = psi_c - psi_cd;
+      double E_log_1mpi = psi_d - psi_cd;
+
+      double old_spike_prior = std::log(pi_fixed / (1.0 - pi_fixed)) * sum_omega;
+      double new_spike_prior = sum_omega * E_log_pi
+                             + (p - sum_omega) * E_log_1mpi;
+      double pi_prior = (c_pi - 1.0) * E_log_pi
+                       + (d_pi - 1.0) * E_log_1mpi
+                       - R::lbeta(c_pi, d_pi);
+      double pi_entropy = R::lbeta(c_pi_tilde, d_pi_tilde)
+                         - (c_pi_tilde - 1.0) * psi_c
+                         - (d_pi_tilde - 1.0) * psi_d
+                         + (c_pi_tilde + d_pi_tilde - 2.0) * psi_cd;
+
+      current_elbo += (new_spike_prior - old_spike_prior)
+                    + pi_prior + pi_entropy;
+    }
+
+    current_elbo += elbo_offset;
+
+    // Original model ELBO: strip all α-related terms
+    double original_model_elbo = current_elbo
+      - alpha_prior - alpha_entropy - alpha_var_penalty;
 
     if (save_history) {
       mu_hist.push_back(mu);
@@ -249,6 +304,7 @@ Rcpp::List run_vb_updates_cpp(
     }
     conv_hist.push_back(convg2);
     elbo_hist.push_back(current_elbo);
+    elbo_original_hist.push_back(original_model_elbo);
 
     last_iter = iter;
 
@@ -290,6 +346,15 @@ Rcpp::List run_vb_updates_cpp(
 
   arma::vec conv_vec(conv_hist);
   arma::vec elbo_vec(elbo_hist);
+  arma::vec elbo_original_vec(elbo_original_hist);
+
+  double final_c_pi_tilde = c_pi;
+  double final_d_pi_tilde = d_pi;
+  if (update_pi) {
+    double sum_omega = arma::accu(omega);
+    final_c_pi_tilde = c_pi + sum_omega;
+    final_d_pi_tilde = d_pi + (p - sum_omega);
+  }
 
   Rcpp::List result = Rcpp::List::create(
     Rcpp::Named("converged") = converged,
@@ -297,11 +362,14 @@ Rcpp::List run_vb_updates_cpp(
     Rcpp::Named("convergence_criterion") = conv_hist.back(),
     Rcpp::Named("convergence_history") = conv_vec,
     Rcpp::Named("elbo_history") = elbo_vec,
+    Rcpp::Named("elbo_original_history") = elbo_original_vec,
     Rcpp::Named("mu") = mu,
     Rcpp::Named("omega") = omega,
     Rcpp::Named("sigma") = sigma,
     Rcpp::Named("tau_b") = tau_b,
-    Rcpp::Named("mu_alpha") = mu_alpha
+    Rcpp::Named("mu_alpha") = mu_alpha,
+    Rcpp::Named("c_pi_tilde") = final_c_pi_tilde,
+    Rcpp::Named("d_pi_tilde") = final_d_pi_tilde
   );
 
   if (save_history) {

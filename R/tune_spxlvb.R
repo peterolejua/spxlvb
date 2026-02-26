@@ -78,8 +78,26 @@
 #'   \code{foreach}. A parallel backend (e.g.,
 #'   \code{doParallel::registerDoParallel()}) must be registered.
 #'   Default: \code{TRUE}.
+#' @param update_pi Logical. If \code{TRUE}, treat \eqn{\pi} as a variational
+#'   parameter (see \code{\link{spxlvb}}). Default: \code{FALSE}.
+#' @param disable_global_alpha Logical. If \code{TRUE}, skip the global
+#'   \eqn{\alpha_{p+1}} rescaling step (see \code{\link{spxlvb}}).
+#'   Default: \code{FALSE}.
 #' @param save_history Logical. Store per-iteration parameter histories
 #'   in the final fit. Default: \code{FALSE}.
+#' @param selection_elbo Character string controlling which ELBO is used
+#'   for grid selection when \code{criterion = "elbo"}. One of:
+#'   \describe{
+#'     \item{\code{"expanded_model"} (default)}{The ELBO of the expanded
+#'       model, including all expansion parameter (\eqn{\alpha}) terms:
+#'       prior normalisation, entropy, and variance penalty.}
+#'     \item{\code{"original_model"}}{The ELBO of the original
+#'       (non-expanded) model, with all \eqn{\alpha}-related terms
+#'       removed. This ELBO depends only on the data fit, spike-and-slab
+#'       prior, and the variational entropy of \eqn{(b, s)}.}
+#'   }
+#'   Ignored when \code{criterion} is \code{"cv"} or
+#'   \code{"validation"} (which select by MSPE, not ELBO).
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -201,9 +219,13 @@ tune_spxlvb <- function(
     seed = 12376,
     verbose = TRUE,
     parallel = TRUE,
-    save_history = FALSE
+    update_pi = FALSE,
+    save_history = FALSE,
+    selection_elbo = c("expanded_model", "original_model"),
+    disable_global_alpha = FALSE
 ) {
     criterion <- match.arg(criterion)
+    selection_elbo <- match.arg(selection_elbo)
     p <- ncol(X)
     if (is.null(mu_alpha)) mu_alpha <- rep(1, p + 1)
     is_2d <- !is.null(b_prior_precision_grid)
@@ -281,7 +303,9 @@ tune_spxlvb <- function(
             initials = initials, mu_alpha = mu_alpha,
             standardize = standardize, intercept = intercept,
             max_iter = max_iter, tol = tol, seed = seed,
-            save_history = save_history,
+            update_pi = update_pi, save_history = save_history,
+            selection_elbo = selection_elbo,
+            disable_global_alpha = disable_global_alpha,
             loop_op = `%loop_op%`
         ),
         cv = tune_cv(
@@ -290,7 +314,8 @@ tune_spxlvb <- function(
             k = k, initials = initials, mu_alpha = mu_alpha,
             standardize = standardize, intercept = intercept,
             max_iter = max_iter, tol = tol, seed = seed,
-            save_history = save_history,
+            update_pi = update_pi, save_history = save_history,
+            disable_global_alpha = disable_global_alpha,
             loop_op = `%loop_op%`
         ),
         validation = tune_validation(
@@ -302,7 +327,8 @@ tune_spxlvb <- function(
             initials = initials, mu_alpha = mu_alpha,
             standardize = standardize, intercept = intercept,
             max_iter = max_iter, tol = tol, seed = seed,
-            save_history = save_history,
+            update_pi = update_pi, save_history = save_history,
+            disable_global_alpha = disable_global_alpha,
             loop_op = `%loop_op%`
         )
     )
@@ -319,7 +345,8 @@ tune_spxlvb <- function(
 tune_elbo <- function(
     X, Y, hyper_grid, is_2d, b_prior_precision,
     initials, mu_alpha, standardize, intercept,
-    max_iter, tol, seed, save_history, loop_op
+    max_iter, tol, seed, update_pi, save_history,
+    selection_elbo, disable_global_alpha, loop_op
 ) {
     `%loop_op%` <- loop_op
     p <- ncol(X)
@@ -350,17 +377,35 @@ tune_elbo <- function(
             intercept = intercept,
             max_iter = max_iter,
             tol = tol,
+            update_pi = update_pi,
             save_history = save_history,
+            disable_global_alpha = disable_global_alpha,
             seed = seed
         )
 
-        list(elbo = fit_i$elbo, fit = fit_i)
+        list(
+            elbo_expanded = fit_i$elbo,
+            elbo_original = fit_i$elbo_original,
+            fit = fit_i
+        )
     }
 
-    elbos <- vapply(grid_fits, function(x) x$elbo, numeric(1))
+    elbos_expanded <- vapply(
+        grid_fits, function(x) x$elbo_expanded, numeric(1)
+    )
+    elbos_original <- vapply(
+        grid_fits, function(x) x$elbo_original, numeric(1)
+    )
+    elbos <- if (selection_elbo == "original_model") {
+        elbos_original
+    } else {
+        elbos_expanded
+    }
     optimal_idx <- which.max(elbos)
 
     hyper_grid$elbo <- elbos
+    hyper_grid$elbo_expanded <- elbos_expanded
+    hyper_grid$elbo_original <- elbos_original
     optimal_alpha <- hyper_grid$alpha_prior_precision[optimal_idx]
     optimal_b <- if (is_2d) {
         hyper_grid$b_prior_precision[optimal_idx]
@@ -392,7 +437,8 @@ tune_elbo <- function(
 tune_cv <- function(
     X, Y, hyper_grid, is_2d, b_prior_precision,
     k, initials, mu_alpha, standardize, intercept,
-    max_iter, tol, seed, save_history, loop_op
+    max_iter, tol, seed, update_pi, save_history,
+    disable_global_alpha, loop_op
 ) {
     `%loop_op%` <- loop_op
     p <- ncol(X)
@@ -440,7 +486,9 @@ tune_cv <- function(
                 intercept = intercept,
                 max_iter = max_iter,
                 tol = tol,
+                update_pi = update_pi,
                 save_history = FALSE,
+                disable_global_alpha = disable_global_alpha,
                 seed = seed
             ),
             error = function(e) NULL
@@ -504,7 +552,9 @@ tune_cv <- function(
         intercept = intercept,
         max_iter = max_iter,
         tol = tol,
+        update_pi = update_pi,
         save_history = save_history,
+        disable_global_alpha = disable_global_alpha,
         seed = seed
     )
 
@@ -530,7 +580,8 @@ tune_validation <- function(
     X, Y, X_validation, Y_validation, beta_true,
     hyper_grid, is_2d, b_prior_precision,
     initials, mu_alpha, standardize, intercept,
-    max_iter, tol, seed, save_history, loop_op
+    max_iter, tol, seed, update_pi, save_history,
+    disable_global_alpha, loop_op
 ) {
     `%loop_op%` <- loop_op
     p <- ncol(X)
@@ -562,7 +613,9 @@ tune_validation <- function(
             intercept = intercept,
             max_iter = max_iter,
             tol = tol,
+            update_pi = update_pi,
             save_history = FALSE,
+            disable_global_alpha = disable_global_alpha,
             seed = seed
         )
 
@@ -623,7 +676,9 @@ tune_validation <- function(
         intercept = intercept,
         max_iter = max_iter,
         tol = tol,
+        update_pi = update_pi,
         save_history = save_history,
+        disable_global_alpha = disable_global_alpha,
         seed = seed
     )
 
