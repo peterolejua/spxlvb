@@ -85,6 +85,9 @@ Rcpp::List run_vb_updates_cpp(
 
     if (convergence_method == 1) W_old = W;
 
+    double alpha_log_var_sum = 0.0;
+    double alpha_var_sum = 0.0;
+
     for (int k = 0; k < p; ++k) {
       unsigned int j = update_order(k);
 
@@ -154,6 +157,13 @@ Rcpp::List run_vb_updates_cpp(
                     (1.0 - omega(j)) * sigma2_alpha_1);
 
       double optimal_alpha_j = D_j * mu_alpha_1 + (1.0 - D_j) * mu_alpha_0;
+
+      double var_alpha_0 = 1.0 / L11;
+      double var_alpha_1 = 1.0 / std::max(L_1, eps);
+      alpha_log_var_sum += omega(j) * std::log(var_alpha_0)
+                         + (1.0 - omega(j)) * std::log(var_alpha_1);
+      alpha_var_sum += omega(j) * var_alpha_0
+                     + (1.0 - omega(j)) * var_alpha_1;
       alpha_j_optimal(j) = optimal_alpha_j;
 
       double mu_j_saved = mu(j);
@@ -184,6 +194,11 @@ Rcpp::List run_vb_updates_cpp(
     double optimal_alpha_p1 = (t_YW + tau_alpha * mu_alpha(idx_p1)) /
                               (t_W2 + tau_alpha);
     alpha_j_optimal(idx_p1) = optimal_alpha_p1;
+
+    double precision_alpha_p1 = tau_e * (t_W2 + tau_alpha);
+    double var_alpha_p1 = 1.0 / precision_alpha_p1;
+    alpha_log_var_sum += std::log(var_alpha_p1);
+    alpha_var_sum += var_alpha_p1;
 
     mu        *= optimal_alpha_p1;
     sigma     *= std::fabs(optimal_alpha_p1);
@@ -217,6 +232,12 @@ Rcpp::List run_vb_updates_cpp(
       mu, sigma, omega, tau_b, mu_alpha,
       Y2, t_YW, t_W2, tau_alpha, tau_e, pi_fixed
     );
+
+    if (tau_alpha > 0.0) {
+      double alpha_entropy = 0.5 * alpha_log_var_sum;
+      double alpha_var_penalty = -0.5 * tau_e * tau_alpha * alpha_var_sum;
+      current_elbo += alpha_entropy + alpha_var_penalty;
+    }
 
     if (save_history) {
       mu_hist.push_back(mu);
