@@ -17,14 +17,14 @@ test_that("tune_spxlvb with criterion='elbo' returns correct structure", {
     alpha_grid <- c(100, 1000)
     b_grid <- c(1, 5)
 
-    result <- tune_spxlvb(
+    result <- suppressWarnings(tune_spxlvb(
         X = dat$X, Y = dat$Y,
         criterion = "elbo",
         alpha_prior_precision_grid = alpha_grid,
         b_prior_precision_grid = b_grid,
         max_iter = 30, tol = 1e-2,
         parallel = FALSE, verbose = FALSE
-    )
+    ))
 
     expect_type(result, "list")
     expect_named(
@@ -46,13 +46,13 @@ test_that("tune_spxlvb ELBO 1D search works (b_prior_precision_grid = NULL)", {
     dat <- setup_tune_problem()
     alpha_grid <- c(100, 1000)
 
-    result <- tune_spxlvb(
+    result <- suppressWarnings(tune_spxlvb(
         X = dat$X, Y = dat$Y,
         criterion = "elbo",
         alpha_prior_precision_grid = alpha_grid,
         max_iter = 30, tol = 1e-2,
         parallel = FALSE, verbose = FALSE
-    )
+    ))
 
     expect_equal(result$criterion, "elbo")
     expect_true(result$optimal$alpha_prior_precision %in% alpha_grid)
@@ -65,14 +65,14 @@ test_that("tune_spxlvb ELBO selects the fit with highest ELBO", {
     alpha_grid <- c(100, 1000)
     b_grid <- c(1, 5)
 
-    result <- tune_spxlvb(
+    result <- suppressWarnings(tune_spxlvb(
         X = dat$X, Y = dat$Y,
         criterion = "elbo",
         alpha_prior_precision_grid = alpha_grid,
         b_prior_precision_grid = b_grid,
         max_iter = 30, tol = 1e-2,
         parallel = FALSE, verbose = FALSE
-    )
+    ))
 
     best_idx <- which.max(result$tuning_grid$elbo)
     expect_equal(
@@ -93,13 +93,13 @@ test_that("tune_spxlvb with criterion='cv' returns correct structure", {
     dat <- setup_tune_problem()
     alpha_grid <- c(100, 1000)
 
-    result <- tune_spxlvb(
+    result <- suppressWarnings(tune_spxlvb(
         X = dat$X, Y = dat$Y,
         criterion = "cv", k = 3,
         alpha_prior_precision_grid = alpha_grid,
         max_iter = 30, tol = 1e-2,
         parallel = FALSE, verbose = FALSE
-    )
+    ))
 
     expect_equal(result$criterion, "cv")
     expect_equal(result$refitted_on, "training")
@@ -116,14 +116,14 @@ test_that("tune_spxlvb CV 2D search works", {
     alpha_grid <- c(100, 1000)
     b_grid <- c(1, 5)
 
-    result <- tune_spxlvb(
+    result <- suppressWarnings(tune_spxlvb(
         X = dat$X, Y = dat$Y,
         criterion = "cv", k = 3,
         alpha_prior_precision_grid = alpha_grid,
         b_prior_precision_grid = b_grid,
         max_iter = 30, tol = 1e-2,
         parallel = FALSE, verbose = FALSE
-    )
+    ))
 
     expect_equal(result$criterion, "cv")
     expect_true(result$optimal$alpha_prior_precision %in% alpha_grid)
@@ -146,7 +146,7 @@ test_that("tune_spxlvb with criterion='validation' returns correct structure", {
     alpha_grid <- c(100, 1000)
     b_grid <- c(1, 5)
 
-    result <- tune_spxlvb(
+    result <- suppressWarnings(tune_spxlvb(
         X = dat$X, Y = dat$Y,
         criterion = "validation",
         X_validation = X_val, Y_validation = Y_val,
@@ -154,7 +154,7 @@ test_that("tune_spxlvb with criterion='validation' returns correct structure", {
         b_prior_precision_grid = b_grid,
         max_iter = 30, tol = 1e-2,
         parallel = FALSE, verbose = FALSE
-    )
+    ))
 
     expect_equal(result$criterion, "validation")
     expect_equal(result$refitted_on, "training_plus_validation")
@@ -169,7 +169,7 @@ test_that("tune_spxlvb validation with beta_true computes oracle MSPE", {
     X_val <- matrix(rnorm(30 * dat$p), 30, dat$p)
     Y_val <- X_val %*% dat$beta_true + rnorm(30)
 
-    result <- tune_spxlvb(
+    result <- suppressWarnings(tune_spxlvb(
         X = dat$X, Y = dat$Y,
         criterion = "validation",
         X_validation = X_val, Y_validation = Y_val,
@@ -178,7 +178,7 @@ test_that("tune_spxlvb validation with beta_true computes oracle MSPE", {
         b_prior_precision_grid = c(1, 5),
         max_iter = 30, tol = 1e-2,
         parallel = FALSE, verbose = FALSE
-    )
+    ))
 
     expect_true("oracle_mspe" %in% names(result$tuning_grid))
     expect_true(all(!is.na(result$tuning_grid$oracle_mspe)))
@@ -207,13 +207,19 @@ test_that("tune_spxlvb warns when CV criterion gets validation data", {
     Y_val <- rnorm(30)
 
     expect_warning(
-        tune_spxlvb(
-            X = dat$X, Y = dat$Y,
-            criterion = "cv", k = 3,
-            X_validation = X_val, Y_validation = Y_val,
-            alpha_prior_precision_grid = c(100, 1000),
-            max_iter = 20, tol = 1e-1,
-            parallel = FALSE, verbose = FALSE
+        withCallingHandlers(
+            tune_spxlvb(
+                X = dat$X, Y = dat$Y,
+                criterion = "cv", k = 3,
+                X_validation = X_val, Y_validation = Y_val,
+                alpha_prior_precision_grid = c(100, 1000),
+                max_iter = 20, tol = 1e-1,
+                parallel = FALSE, verbose = FALSE
+            ),
+            warning = function(w) {
+                if (grepl("search grid", conditionMessage(w)))
+                    invokeRestart("muffleWarning")
+            }
         ),
         "ignored when criterion"
     )
@@ -225,13 +231,19 @@ test_that("tune_spxlvb warns when ELBO criterion gets validation data", {
     Y_val <- rnorm(30)
 
     expect_warning(
-        tune_spxlvb(
-            X = dat$X, Y = dat$Y,
-            criterion = "elbo",
-            X_validation = X_val, Y_validation = Y_val,
-            alpha_prior_precision_grid = c(100, 1000),
-            max_iter = 20, tol = 1e-1,
-            parallel = FALSE, verbose = FALSE
+        withCallingHandlers(
+            tune_spxlvb(
+                X = dat$X, Y = dat$Y,
+                criterion = "elbo",
+                X_validation = X_val, Y_validation = Y_val,
+                alpha_prior_precision_grid = c(100, 1000),
+                max_iter = 20, tol = 1e-1,
+                parallel = FALSE, verbose = FALSE
+            ),
+            warning = function(w) {
+                if (grepl("search grid", conditionMessage(w)))
+                    invokeRestart("muffleWarning")
+            }
         ),
         "ignored when criterion"
     )
@@ -257,7 +269,7 @@ test_that("tune_spxlvb CV rejects k < 3", {
 test_that("grid_search_spxlvb_fit still works with deprecation warning", {
     dat <- setup_tune_problem()
 
-    result <- expect_warning(
+    result <- suppressWarnings(expect_warning(
         grid_search_spxlvb_fit(
             X = dat$X, Y = dat$Y,
             alpha_prior_precision_grid = c(100, 1000),
@@ -266,7 +278,7 @@ test_that("grid_search_spxlvb_fit still works with deprecation warning", {
             parallel = FALSE, verbose = FALSE
         ),
         "deprecated"
-    )
+    ))
 
     expect_true("fit_spxlvb" %in% names(result))
     expect_true("hyper_grid" %in% names(result))
@@ -277,7 +289,7 @@ test_that("grid_search_spxlvb_fit still works with deprecation warning", {
 test_that("cv_spxlvb_fit still works with deprecation warning", {
     dat <- setup_tune_problem()
 
-    result <- expect_warning(
+    result <- suppressWarnings(expect_warning(
         cv_spxlvb_fit(
             k = 3, X = dat$X, Y = dat$Y,
             alpha_prior_precision_grid = c(100, 1000),
@@ -285,7 +297,7 @@ test_that("cv_spxlvb_fit still works with deprecation warning", {
             parallel = FALSE, verbose = FALSE
         ),
         "deprecated"
-    )
+    ))
 
     expect_true("fit_spxlvb" %in% names(result))
     expect_true("alpha_prior_precision_grid_opt" %in% names(result))

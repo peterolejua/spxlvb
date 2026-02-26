@@ -368,6 +368,12 @@ tune_elbo <- function(
         NA_real_
     }
 
+    warn_grid_boundary(
+        optimal_alpha, hyper_grid$alpha_prior_precision,
+        is_2d, optimal_b,
+        if (is_2d) hyper_grid$b_prior_precision else numeric(0)
+    )
+
     list(
         fit = grid_fits[[optimal_idx]]$fit,
         criterion = "elbo",
@@ -476,6 +482,12 @@ tune_cv <- function(
         NA_real_
     }
     b_prec_final <- if (is_2d) rep(optimal_b_scalar, p) else b_prior_precision
+
+    warn_grid_boundary(
+        optimal_alpha, hyper_grid$alpha_prior_precision,
+        is_2d, optimal_b_scalar,
+        if (is_2d) hyper_grid$b_prior_precision else numeric(0)
+    )
 
     final_fit <- spxlvb(
         X = X, Y = Y,
@@ -592,6 +604,12 @@ tune_validation <- function(
     }
     b_prec_final <- if (is_2d) rep(optimal_b_scalar, p) else b_prior_precision
 
+    warn_grid_boundary(
+        optimal_alpha, hyper_grid$alpha_prior_precision,
+        is_2d, optimal_b_scalar,
+        if (is_2d) hyper_grid$b_prior_precision else numeric(0)
+    )
+
     X_combined <- rbind(X, X_validation)
     Y_combined <- c(as.numeric(Y), as.numeric(Y_validation))
 
@@ -625,6 +643,48 @@ tune_validation <- function(
         tuning_details = details,
         refitted_on = "training_plus_validation"
     )
+}
+
+warn_grid_boundary <- function(optimal_alpha, alpha_grid, is_2d,
+                               optimal_b, b_grid) {
+    alpha_at_min <- optimal_alpha == min(alpha_grid)
+    alpha_at_max <- optimal_alpha == max(alpha_grid)
+    if (alpha_at_min) {
+        warning(
+            "Optimal alpha_prior_precision (", optimal_alpha,
+            ") is at the minimum of the search grid. ",
+            "Consider extending the grid to smaller values.",
+            call. = FALSE
+        )
+    }
+    if (alpha_at_max) {
+        warning(
+            "Optimal alpha_prior_precision (", optimal_alpha,
+            ") is at the maximum of the search grid. ",
+            "Consider extending the grid to larger values.",
+            call. = FALSE
+        )
+    }
+    if (is_2d) {
+        b_at_min <- optimal_b == min(b_grid)
+        b_at_max <- optimal_b == max(b_grid)
+        if (b_at_min) {
+            warning(
+                "Optimal b_prior_precision (", optimal_b,
+                ") is at the minimum of the search grid. ",
+                "Consider extending the grid to smaller values.",
+                call. = FALSE
+            )
+        }
+        if (b_at_max) {
+            warning(
+                "Optimal b_prior_precision (", optimal_b,
+                ") is at the maximum of the search grid. ",
+                "Consider extending the grid to larger values.",
+                call. = FALSE
+            )
+        }
+    }
 }
 
 utils::globalVariables(c("i", "idx"))

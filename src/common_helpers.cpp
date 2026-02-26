@@ -4,6 +4,7 @@
 
 using namespace arma;
 
+// [[Rcpp::export]]
 Rcpp::List compute_elbo_cpp(
     const arma::vec& mu,
     const arma::vec& sigma,

@@ -11,6 +11,27 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// compute_elbo_cpp
+Rcpp::List compute_elbo_cpp(const arma::vec& mu, const arma::vec& sigma, const arma::vec& omega, const arma::vec& tau_b, const arma::vec& mu_alpha, double Y2, double t_YW, double t_W2, double tau_alpha, double tau_e, double pi_fixed);
+RcppExport SEXP _spxlvb_compute_elbo_cpp(SEXP muSEXP, SEXP sigmaSEXP, SEXP omegaSEXP, SEXP tau_bSEXP, SEXP mu_alphaSEXP, SEXP Y2SEXP, SEXP t_YWSEXP, SEXP t_W2SEXP, SEXP tau_alphaSEXP, SEXP tau_eSEXP, SEXP pi_fixedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type omega(omegaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type tau_b(tau_bSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type mu_alpha(mu_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type Y2(Y2SEXP);
+    Rcpp::traits::input_parameter< double >::type t_YW(t_YWSEXP);
+    Rcpp::traits::input_parameter< double >::type t_W2(t_W2SEXP);
+    Rcpp::traits::input_parameter< double >::type tau_alpha(tau_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type tau_e(tau_eSEXP);
+    Rcpp::traits::input_parameter< double >::type pi_fixed(pi_fixedSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_elbo_cpp(mu, sigma, omega, tau_b, mu_alpha, Y2, t_YW, t_W2, tau_alpha, tau_e, pi_fixed));
+    return rcpp_result_gen;
+END_RCPP
+}
 // run_vb_updates_cpp
 Rcpp::List run_vb_updates_cpp(const arma::mat& X, const arma::vec& Y, arma::vec mu, arma::vec omega, double c_pi, double d_pi, double tau_e, const arma::uvec& update_order, arma::vec mu_alpha, double tau_alpha, arma::vec tau_b, int max_iter, double tol, bool save_history, int convergence_method);
 RcppExport SEXP _spxlvb_run_vb_updates_cpp(SEXP XSEXP, SEXP YSEXP, SEXP muSEXP, SEXP omegaSEXP, SEXP c_piSEXP, SEXP d_piSEXP, SEXP tau_eSEXP, SEXP update_orderSEXP, SEXP mu_alphaSEXP, SEXP tau_alphaSEXP, SEXP tau_bSEXP, SEXP max_iterSEXP, SEXP tolSEXP, SEXP save_historySEXP, SEXP convergence_methodSEXP) {
@@ -38,6 +59,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_spxlvb_compute_elbo_cpp", (DL_FUNC) &_spxlvb_compute_elbo_cpp, 11},
     {"_spxlvb_run_vb_updates_cpp", (DL_FUNC) &_spxlvb_run_vb_updates_cpp, 15},
     {NULL, NULL, 0}
 };
