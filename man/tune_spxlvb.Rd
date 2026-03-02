@@ -27,6 +27,7 @@ tune_spxlvb(
   intercept = TRUE,
   max_iter = 100L,
   tol = 1e-05,
+  convergence = c("elbo_relative", "elbo_absolute", "chisq", "entropy"),
   seed = 12376,
   verbose = TRUE,
   parallel = TRUE,
@@ -135,6 +136,11 @@ Default: \code{TRUE}.}
 Default: 100.}
 
 \item{tol}{Numeric. Convergence tolerance. Default: 1e-5.}
+
+\item{convergence}{Character string specifying the convergence criterion.
+One of \code{"elbo_relative"} (default), \code{"elbo_absolute"},
+\code{"chisq"}, or \code{"entropy"}. Passed through to
+\code{\link{spxlvb}}.}
 
 \item{seed}{Integer. Seed for reproducibility. Default: 12376.}
 

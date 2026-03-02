@@ -21,3 +21,17 @@ Thumbs.db
 AGENTS.md
 /doc/
 /Meta/
+
+# Temp benchmark files
+temp_*
+
+# OneDrive/Claude artifacts
+.claude/
+HEAD
+objects
+refs
+hooks
+config
+
+# Benchmark dev scripts (not part of package)
+benchmarks/

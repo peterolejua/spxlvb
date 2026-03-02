@@ -76,6 +76,10 @@
 #' @param max_iter Integer. Maximum VB iterations per fit.
 #'   Default: 100.
 #' @param tol Numeric. Convergence tolerance. Default: 1e-5.
+#' @param convergence Character string specifying the convergence criterion.
+#'   One of \code{"elbo_relative"} (default), \code{"elbo_absolute"},
+#'   \code{"chisq"}, or \code{"entropy"}. Passed through to
+#'   \code{\link{spxlvb}}.
 #' @param seed Integer. Seed for reproducibility. Default: 12376.
 #' @param verbose Logical. Print progress messages. Default: \code{TRUE}.
 #' @param parallel Logical. Run grid evaluation in parallel via
@@ -242,6 +246,7 @@ tune_spxlvb <- function(
     intercept = TRUE,
     max_iter = 100L,
     tol = 1e-5,
+    convergence = c("elbo_relative", "elbo_absolute", "chisq", "entropy"),
     seed = 12376,
     verbose = TRUE,
     parallel = TRUE,
@@ -258,6 +263,7 @@ tune_spxlvb <- function(
 ) {
     criterion <- match.arg(criterion)
     initialization <- match.arg(initialization)
+    convergence <- match.arg(convergence)
     selection_elbo <- match.arg(selection_elbo)
     p <- ncol(X)
     if (is.null(mu_alpha)) mu_alpha <- rep(1, p + 1)
@@ -342,7 +348,8 @@ tune_spxlvb <- function(
             b_prior_precision = b_prior_precision,
             initials = initials, mu_alpha = mu_alpha,
             standardize = standardize, intercept = intercept,
-            max_iter = max_iter, tol = tol, seed = seed,
+            max_iter = max_iter, tol = tol, convergence = convergence,
+            seed = seed,
             update_pi = update_pi, save_history = save_history,
             selection_elbo = selection_elbo,
             disable_global_alpha = disable_global_alpha,
@@ -358,7 +365,8 @@ tune_spxlvb <- function(
             b_prior_precision = b_prior_precision,
             k = k, initials = initials, mu_alpha = mu_alpha,
             standardize = standardize, intercept = intercept,
-            max_iter = max_iter, tol = tol, seed = seed,
+            max_iter = max_iter, tol = tol, convergence = convergence,
+            seed = seed,
             update_pi = update_pi, save_history = save_history,
             disable_global_alpha = disable_global_alpha,
             gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
@@ -376,7 +384,8 @@ tune_spxlvb <- function(
             b_prior_precision = b_prior_precision,
             initials = initials, mu_alpha = mu_alpha,
             standardize = standardize, intercept = intercept,
-            max_iter = max_iter, tol = tol, seed = seed,
+            max_iter = max_iter, tol = tol, convergence = convergence,
+            seed = seed,
             update_pi = update_pi, save_history = save_history,
             disable_global_alpha = disable_global_alpha,
             gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
@@ -400,7 +409,7 @@ tune_spxlvb <- function(
 tune_elbo <- function(
     X, Y, hyper_grid, is_2d, b_prior_precision,
     initials, mu_alpha, standardize, intercept,
-    max_iter, tol, seed, update_pi, save_history,
+    max_iter, tol, convergence, seed, update_pi, save_history,
     selection_elbo, disable_global_alpha,
     gamma_hyperprior_tau_alpha, r_alpha, d_alpha,
     gamma_hyperprior_tau_b, r_b, d_b,
@@ -436,6 +445,7 @@ tune_elbo <- function(
             intercept = intercept,
             max_iter = max_iter,
             tol = tol,
+            convergence = convergence,
             update_pi = update_pi,
             save_history = save_history,
             disable_global_alpha = disable_global_alpha,
@@ -506,7 +516,7 @@ tune_elbo <- function(
 tune_cv <- function(
     X, Y, hyper_grid, is_2d, b_prior_precision,
     k, initials, mu_alpha, standardize, intercept,
-    max_iter, tol, seed, update_pi, save_history,
+    max_iter, tol, convergence, seed, update_pi, save_history,
     disable_global_alpha,
     gamma_hyperprior_tau_alpha, r_alpha, d_alpha,
     gamma_hyperprior_tau_b, r_b, d_b,
@@ -559,6 +569,7 @@ tune_cv <- function(
                 intercept = intercept,
                 max_iter = max_iter,
                 tol = tol,
+                convergence = convergence,
                 update_pi = update_pi,
                 save_history = FALSE,
                 disable_global_alpha = disable_global_alpha,
@@ -632,6 +643,7 @@ tune_cv <- function(
         intercept = intercept,
         max_iter = max_iter,
         tol = tol,
+        convergence = convergence,
         update_pi = update_pi,
         save_history = save_history,
         disable_global_alpha = disable_global_alpha,
@@ -666,7 +678,7 @@ tune_validation <- function(
     X, Y, X_validation, Y_validation, beta_true,
     hyper_grid, is_2d, b_prior_precision,
     initials, mu_alpha, standardize, intercept,
-    max_iter, tol, seed, update_pi, save_history,
+    max_iter, tol, convergence, seed, update_pi, save_history,
     disable_global_alpha,
     gamma_hyperprior_tau_alpha, r_alpha, d_alpha,
     gamma_hyperprior_tau_b, r_b, d_b,
@@ -703,6 +715,7 @@ tune_validation <- function(
             intercept = intercept,
             max_iter = max_iter,
             tol = tol,
+            convergence = convergence,
             update_pi = update_pi,
             save_history = FALSE,
             disable_global_alpha = disable_global_alpha,
@@ -773,6 +786,7 @@ tune_validation <- function(
         intercept = intercept,
         max_iter = max_iter,
         tol = tol,
+        convergence = convergence,
         update_pi = update_pi,
         save_history = save_history,
         disable_global_alpha = disable_global_alpha,
