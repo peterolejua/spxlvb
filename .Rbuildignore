@@ -13,3 +13,10 @@
 ^src/\.Rhistory$
 ^doc$
 ^Meta$
+^benchmarks$
+^temp_b4_.*$
+^HEAD$
+^config$
+^hooks$
+^objects$
+^refs$

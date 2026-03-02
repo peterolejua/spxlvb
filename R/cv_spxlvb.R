@@ -17,7 +17,8 @@
 #' @param d_pi_0 Optional prior shape2 for \eqn{\pi}.
 #' @param tau_e Optional initial error precision.
 #' @param update_order Optional coordinate update order (0-indexed).
-#' @param mu_alpha Optional prior means for expansion parameters.
+#' @param initialization Character string specifying initialisation strategy.
+#' @param mu_alpha Optional prior means for explosion parameters.
 #' @param alpha_prior_precision_grid Grid of \eqn{\tau_\alpha} values.
 #' @param b_prior_precision_grid Optional grid of \eqn{\tau_b} values
 #'   for 2D search.
@@ -48,6 +49,7 @@ cv_spxlvb <- function(
     d_pi_0 = NULL,
     tau_e = NULL,
     update_order = NULL,
+    initialization = c("lasso", "ridge", "lasso_ridge", "null"),
     mu_alpha = NULL,
     alpha_prior_precision_grid = c(0, 10^(3:7)),
     b_prior_precision_grid = NULL,
@@ -61,6 +63,7 @@ cv_spxlvb <- function(
     parallel = TRUE
 ) {
     .Deprecated("tune_spxlvb")
+    initialization <- match.arg(initialization)
 
     idx <- NULL
 
@@ -139,6 +142,7 @@ cv_spxlvb <- function(
                     d_pi_0 = d_pi_0,
                     tau_e = tau_e,
                     update_order = update_order,
+                    initialization = initialization,
                     mu_alpha = mu_alpha,
                     alpha_prior_precision = current_task$alpha_val,
                     b_prior_precision = b_prec,
@@ -243,6 +247,7 @@ cv_spxlvb_fit <- function(
     d_pi_0 = NULL,
     tau_e = NULL,
     update_order = NULL,
+    initialization = c("lasso", "ridge", "lasso_ridge", "null"),
     mu_alpha = NULL,
     alpha_prior_precision_grid = c(0, 10^(3:7)),
     b_prior_precision_grid = NULL,
@@ -258,6 +263,8 @@ cv_spxlvb_fit <- function(
 ) {
     .Deprecated("tune_spxlvb")
 
+    initialization <- match.arg(initialization)
+
     result <- tune_spxlvb(
         X = X, Y = Y,
         criterion = "cv",
@@ -271,6 +278,7 @@ cv_spxlvb_fit <- function(
         d_pi_0 = d_pi_0,
         tau_e = tau_e,
         update_order = update_order,
+        initialization = initialization,
         mu_alpha = mu_alpha,
         standardize = standardize,
         intercept = intercept,

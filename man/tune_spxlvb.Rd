@@ -21,6 +21,7 @@ tune_spxlvb(
   d_pi_0 = NULL,
   tau_e = NULL,
   update_order = NULL,
+  initialization = c("lasso", "ridge", "lasso_ridge", "null"),
   mu_alpha = NULL,
   standardize = TRUE,
   intercept = TRUE,
@@ -31,8 +32,14 @@ tune_spxlvb(
   parallel = TRUE,
   update_pi = FALSE,
   save_history = FALSE,
-  selection_elbo = c("expanded_model", "original_model"),
-  disable_global_alpha = FALSE
+  selection_elbo = c("exploded_model", "alpha_stripped"),
+  disable_global_alpha = FALSE,
+  gamma_hyperprior_tau_alpha = FALSE,
+  r_alpha = NULL,
+  d_alpha = NULL,
+  gamma_hyperprior_tau_b = FALSE,
+  r_b = NULL,
+  d_b = NULL
 )
 }
 \arguments{
@@ -61,7 +68,7 @@ MSPE on the held-out validation set (\code{X_validation},
 combined training + validation data.}
 }}
 
-\item{alpha_prior_precision_grid}{Numeric vector. Grid of expansion
+\item{alpha_prior_precision_grid}{Numeric vector. Grid of explosion
 prior precision (\eqn{\tau_\alpha}) values to search over.
 Default: \code{c(0, 10^(3:7))}.}
 
@@ -109,8 +116,13 @@ inclusion probabilities.}
 \item{update_order}{Optional integer vector. Coordinate update
 order (0-indexed for C++).}
 
+\item{initialization}{Character string specifying the initialization
+strategy. One of \code{"lasso"} (default), \code{"ridge"},
+\code{"lasso_ridge"}, or \code{"null"}. Passed through to
+\code{\link{get_initials_spxlvb}} and \code{\link{spxlvb}}.}
+
 \item{mu_alpha}{Numeric vector of length \eqn{p+1}. Prior means for
-the expansion parameters (see \code{\link{spxlvb}}). Default:
+the explosion parameters (see \code{\link{spxlvb}}). Default:
 a vector of ones.}
 
 \item{standardize}{Logical. Center Y and center + scale X.
@@ -142,13 +154,13 @@ in the final fit. Default: \code{FALSE}.}
 \item{selection_elbo}{Character string controlling which ELBO is used
 for grid selection when \code{criterion = "elbo"}. One of:
 \describe{
-\item{\code{"expanded_model"} (default)}{The ELBO of the expanded
-model, including all expansion parameter (\eqn{\alpha}) terms:
+\item{\code{"exploded_model"} (default)}{The ELBO of the exploded
+model, including all explosion parameter (\eqn{\alpha}) terms:
 prior normalisation, entropy, and variance penalty.}
-\item{\code{"original_model"}}{The ELBO of the original
-(non-expanded) model, with all \eqn{\alpha}-related terms
-removed. This ELBO depends only on the data fit, spike-and-slab
-prior, and the variational entropy of \eqn{(b, s)}.}
+\item{\code{"alpha_stripped"}}{The \eqn{\alpha}-stripped ELBO,
+with the \eqn{\alpha} normalisation and penalty terms removed.
+This ELBO depends only on the data fit, slab terms,
+\eqn{\pi} terms, and the variational entropy of \eqn{(b, s)}.}
 }
 Ignored when \code{criterion} is \code{"cv"} or
 \code{"validation"} (which select by MSPE, not ELBO).}
@@ -156,6 +168,33 @@ Ignored when \code{criterion} is \code{"cv"} or
 \item{disable_global_alpha}{Logical. If \code{TRUE}, skip the global
 \eqn{\alpha_{p+1}} rescaling step (see \code{\link{spxlvb}}).
 Default: \code{FALSE}.}
+
+\item{gamma_hyperprior_tau_alpha}{Logical. If \code{TRUE}, place a conjugate
+Gamma hyperprior on \eqn{\tau_\alpha} and learn it adaptively
+(see \code{\link{spxlvb}}). When enabled, the
+\code{alpha_prior_precision_grid} is ignored and tuning reduces to
+a 1D search over \code{b_prior_precision_grid} only.
+Default: \code{FALSE}.}
+
+\item{r_alpha}{Numeric scalar. Gamma hyperprior shape for
+\eqn{\tau_\alpha}. Passed through to \code{\link{spxlvb}}.
+Default: \code{NULL} (uses \code{spxlvb} default).}
+
+\item{d_alpha}{Numeric scalar. Gamma hyperprior rate for
+\eqn{\tau_\alpha}. Passed through to \code{\link{spxlvb}}.
+Default: \code{NULL} (uses \code{spxlvb} default).}
+
+\item{gamma_hyperprior_tau_b}{Logical. If \code{TRUE}, place a conjugate
+Gamma hyperprior on \eqn{\tau_b} and learn it adaptively
+(see \code{\link{spxlvb}}). Default: \code{FALSE}.}
+
+\item{r_b}{Numeric scalar. Gamma hyperprior shape for \eqn{\tau_b}.
+Passed through to \code{\link{spxlvb}}.
+Default: \code{NULL} (uses \code{spxlvb} default).}
+
+\item{d_b}{Numeric scalar. Gamma hyperprior rate for \eqn{\tau_b}.
+Passed through to \code{\link{spxlvb}}.
+Default: \code{NULL} (uses \code{spxlvb} default).}
 }
 \value{
 A list with elements:

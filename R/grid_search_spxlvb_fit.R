@@ -33,6 +33,7 @@ grid_search_spxlvb_fit <- function(
     d_pi_0 = NULL,
     tau_e = NULL,
     update_order = NULL,
+    initialization = c("lasso", "ridge", "lasso_ridge", "null"),
     mu_alpha = rep(1, ncol(X) + 1),
     alpha_prior_precision_grid = c(10, 50, 100, 400, 1000),
     b_prior_precision_grid = seq(0.001, 5, length.out = 5),
@@ -46,6 +47,7 @@ grid_search_spxlvb_fit <- function(
     save_history = FALSE
 ) {
     .Deprecated("tune_spxlvb")
+    initialization <- match.arg(initialization)
 
     has_validation <- !is.null(X_validation) && !is.null(Y_validation)
     selected_criterion <- if (has_validation) "validation" else "elbo"
@@ -64,6 +66,7 @@ grid_search_spxlvb_fit <- function(
         d_pi_0 = d_pi_0,
         tau_e = tau_e,
         update_order = update_order,
+        initialization = initialization,
         mu_alpha = mu_alpha,
         standardize = standardize,
         intercept = intercept,
@@ -77,7 +80,13 @@ grid_search_spxlvb_fit <- function(
 
     # Reshape to legacy return structure
     legacy_grid <- result$tuning_grid
-    if (!"elbo" %in% names(legacy_grid)) legacy_grid$elbo <- NA_real_
+    if (!"elbo" %in% names(legacy_grid)) {
+        legacy_grid$elbo <- if ("exploded_elbo" %in% names(legacy_grid)) {
+            legacy_grid$exploded_elbo
+        } else {
+            NA_real_
+        }
+    }
     if (!"mse_validation_y" %in% names(legacy_grid)) {
         legacy_grid$mse_validation_y <- if ("validation_mspe" %in% names(legacy_grid)) {
             legacy_grid$validation_mspe

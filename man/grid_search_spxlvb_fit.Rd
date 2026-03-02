@@ -16,6 +16,7 @@ grid_search_spxlvb_fit(
   d_pi_0 = NULL,
   tau_e = NULL,
   update_order = NULL,
+  initialization = c("lasso", "ridge", "lasso_ridge", "null"),
   mu_alpha = rep(1, ncol(X) + 1),
   alpha_prior_precision_grid = c(10, 50, 100, 400, 1000),
   b_prior_precision_grid = seq(0.001, 5, length.out = 5),
@@ -54,11 +55,16 @@ inclusion probabilities.}
 \item{update_order}{Optional integer vector. Coordinate update
 order (0-indexed for C++).}
 
+\item{initialization}{Character string specifying the initialization
+strategy. One of \code{"lasso"} (default), \code{"ridge"},
+\code{"lasso_ridge"}, or \code{"null"}. Passed through to
+\code{\link{get_initials_spxlvb}} and \code{\link{spxlvb}}.}
+
 \item{mu_alpha}{Numeric vector of length \eqn{p+1}. Prior means for
-the expansion parameters (see \code{\link{spxlvb}}). Default:
+the explosion parameters (see \code{\link{spxlvb}}). Default:
 a vector of ones.}
 
-\item{alpha_prior_precision_grid}{Numeric vector. Grid of expansion
+\item{alpha_prior_precision_grid}{Numeric vector. Grid of explosion
 prior precision (\eqn{\tau_\alpha}) values to search over.
 Default: \code{c(0, 10^(3:7))}.}
 

@@ -27,7 +27,7 @@
 #'       \code{Y_validation}). The final model is refit on the
 #'       combined training + validation data.}
 #'   }
-#' @param alpha_prior_precision_grid Numeric vector. Grid of expansion
+#' @param alpha_prior_precision_grid Numeric vector. Grid of explosion
 #'   prior precision (\eqn{\tau_\alpha}) values to search over.
 #'   Default: \code{c(0, 10^(3:7))}.
 #' @param b_prior_precision_grid Optional numeric vector. Grid of scalar
@@ -62,8 +62,12 @@
 #' @param tau_e Optional numeric. Initial error precision.
 #' @param update_order Optional integer vector. Coordinate update
 #'   order (0-indexed for C++).
+#' @param initialization Character string specifying the initialization
+#'   strategy. One of \code{"lasso"} (default), \code{"ridge"},
+#'   \code{"lasso_ridge"}, or \code{"null"}. Passed through to
+#'   \code{\link{get_initials_spxlvb}} and \code{\link{spxlvb}}.
 #' @param mu_alpha Numeric vector of length \eqn{p+1}. Prior means for
-#'   the expansion parameters (see \code{\link{spxlvb}}). Default:
+#'   the explosion parameters (see \code{\link{spxlvb}}). Default:
 #'   a vector of ones.
 #' @param standardize Logical. Center Y and center + scale X.
 #'   Default: \code{TRUE}.
@@ -85,16 +89,37 @@
 #'   Default: \code{FALSE}.
 #' @param save_history Logical. Store per-iteration parameter histories
 #'   in the final fit. Default: \code{FALSE}.
+#' @param gamma_hyperprior_tau_alpha Logical. If \code{TRUE}, place a conjugate
+#'   Gamma hyperprior on \eqn{\tau_\alpha} and learn it adaptively
+#'   (see \code{\link{spxlvb}}). When enabled, the
+#'   \code{alpha_prior_precision_grid} is ignored and tuning reduces to
+#'   a 1D search over \code{b_prior_precision_grid} only.
+#'   Default: \code{FALSE}.
+#' @param r_alpha Numeric scalar. Gamma hyperprior shape for
+#'   \eqn{\tau_\alpha}. Passed through to \code{\link{spxlvb}}.
+#'   Default: \code{NULL} (uses \code{spxlvb} default).
+#' @param d_alpha Numeric scalar. Gamma hyperprior rate for
+#'   \eqn{\tau_\alpha}. Passed through to \code{\link{spxlvb}}.
+#'   Default: \code{NULL} (uses \code{spxlvb} default).
+#' @param gamma_hyperprior_tau_b Logical. If \code{TRUE}, place a conjugate
+#'   Gamma hyperprior on \eqn{\tau_b} and learn it adaptively
+#'   (see \code{\link{spxlvb}}). Default: \code{FALSE}.
+#' @param r_b Numeric scalar. Gamma hyperprior shape for \eqn{\tau_b}.
+#'   Passed through to \code{\link{spxlvb}}.
+#'   Default: \code{NULL} (uses \code{spxlvb} default).
+#' @param d_b Numeric scalar. Gamma hyperprior rate for \eqn{\tau_b}.
+#'   Passed through to \code{\link{spxlvb}}.
+#'   Default: \code{NULL} (uses \code{spxlvb} default).
 #' @param selection_elbo Character string controlling which ELBO is used
 #'   for grid selection when \code{criterion = "elbo"}. One of:
 #'   \describe{
-#'     \item{\code{"expanded_model"} (default)}{The ELBO of the expanded
-#'       model, including all expansion parameter (\eqn{\alpha}) terms:
+#'     \item{\code{"exploded_model"} (default)}{The ELBO of the exploded
+#'       model, including all explosion parameter (\eqn{\alpha}) terms:
 #'       prior normalisation, entropy, and variance penalty.}
-#'     \item{\code{"original_model"}}{The ELBO of the original
-#'       (non-expanded) model, with all \eqn{\alpha}-related terms
-#'       removed. This ELBO depends only on the data fit, spike-and-slab
-#'       prior, and the variational entropy of \eqn{(b, s)}.}
+#'     \item{\code{"alpha_stripped"}}{The \eqn{\alpha}-stripped ELBO,
+#'       with the \eqn{\alpha} normalisation and penalty terms removed.
+#'       This ELBO depends only on the data fit, slab terms,
+#'       \eqn{\pi} terms, and the variational entropy of \eqn{(b, s)}.}
 #'   }
 #'   Ignored when \code{criterion} is \code{"cv"} or
 #'   \code{"validation"} (which select by MSPE, not ELBO).
@@ -211,6 +236,7 @@ tune_spxlvb <- function(
     d_pi_0 = NULL,
     tau_e = NULL,
     update_order = NULL,
+    initialization = c("lasso", "ridge", "lasso_ridge", "null"),
     mu_alpha = NULL,
     standardize = TRUE,
     intercept = TRUE,
@@ -221,10 +247,17 @@ tune_spxlvb <- function(
     parallel = TRUE,
     update_pi = FALSE,
     save_history = FALSE,
-    selection_elbo = c("expanded_model", "original_model"),
-    disable_global_alpha = FALSE
+    selection_elbo = c("exploded_model", "alpha_stripped"),
+    disable_global_alpha = FALSE,
+    gamma_hyperprior_tau_alpha = FALSE,
+    r_alpha = NULL,
+    d_alpha = NULL,
+    gamma_hyperprior_tau_b = FALSE,
+    r_b = NULL,
+    d_b = NULL
 ) {
     criterion <- match.arg(criterion)
+    initialization <- match.arg(initialization)
     selection_elbo <- match.arg(selection_elbo)
     p <- ncol(X)
     if (is.null(mu_alpha)) mu_alpha <- rep(1, p + 1)
@@ -276,10 +309,17 @@ tune_spxlvb <- function(
         d_pi_0 = d_pi_0,
         tau_e = tau_e,
         update_order = update_order,
+        initialization = initialization,
         seed = seed
     )
 
     # --- Build hyperparameter grid ---
+    if (gamma_hyperprior_tau_alpha) {
+        alpha_prior_precision_grid <- alpha_prior_precision_grid[1]
+    }
+    if (gamma_hyperprior_tau_b && !is.null(b_prior_precision_grid)) {
+        b_prior_precision_grid <- b_prior_precision_grid[1]
+    }
     b_grid_values <- if (is_2d) b_prior_precision_grid else NA_real_
     hyper_grid <- expand.grid(
         alpha_prior_precision = alpha_prior_precision_grid,
@@ -306,6 +346,11 @@ tune_spxlvb <- function(
             update_pi = update_pi, save_history = save_history,
             selection_elbo = selection_elbo,
             disable_global_alpha = disable_global_alpha,
+            gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
+            r_alpha = r_alpha, d_alpha = d_alpha,
+            gamma_hyperprior_tau_b = gamma_hyperprior_tau_b,
+            r_b = r_b, d_b = d_b,
+            initialization = initialization,
             loop_op = `%loop_op%`
         ),
         cv = tune_cv(
@@ -316,6 +361,11 @@ tune_spxlvb <- function(
             max_iter = max_iter, tol = tol, seed = seed,
             update_pi = update_pi, save_history = save_history,
             disable_global_alpha = disable_global_alpha,
+            gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
+            r_alpha = r_alpha, d_alpha = d_alpha,
+            gamma_hyperprior_tau_b = gamma_hyperprior_tau_b,
+            r_b = r_b, d_b = d_b,
+            initialization = initialization,
             loop_op = `%loop_op%`
         ),
         validation = tune_validation(
@@ -329,6 +379,11 @@ tune_spxlvb <- function(
             max_iter = max_iter, tol = tol, seed = seed,
             update_pi = update_pi, save_history = save_history,
             disable_global_alpha = disable_global_alpha,
+            gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
+            r_alpha = r_alpha, d_alpha = d_alpha,
+            gamma_hyperprior_tau_b = gamma_hyperprior_tau_b,
+            r_b = r_b, d_b = d_b,
+            initialization = initialization,
             loop_op = `%loop_op%`
         )
     )
@@ -346,7 +401,10 @@ tune_elbo <- function(
     X, Y, hyper_grid, is_2d, b_prior_precision,
     initials, mu_alpha, standardize, intercept,
     max_iter, tol, seed, update_pi, save_history,
-    selection_elbo, disable_global_alpha, loop_op
+    selection_elbo, disable_global_alpha,
+    gamma_hyperprior_tau_alpha, r_alpha, d_alpha,
+    gamma_hyperprior_tau_b, r_b, d_b,
+    initialization, loop_op
 ) {
     `%loop_op%` <- loop_op
     p <- ncol(X)
@@ -370,6 +428,7 @@ tune_elbo <- function(
             d_pi_0 = initials$d_pi_0,
             tau_e = initials$tau_e,
             update_order = initials$update_order,
+            initialization = initialization,
             mu_alpha = mu_alpha,
             alpha_prior_precision = hyper_grid$alpha_prior_precision[i],
             b_prior_precision = b_prec,
@@ -380,32 +439,42 @@ tune_elbo <- function(
             update_pi = update_pi,
             save_history = save_history,
             disable_global_alpha = disable_global_alpha,
+            gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
+            r_alpha = r_alpha,
+            d_alpha = d_alpha,
+            gamma_hyperprior_tau_b = gamma_hyperprior_tau_b,
+            r_b = r_b,
+            d_b = d_b,
             seed = seed
         )
 
         list(
-            elbo_expanded = fit_i$elbo,
-            elbo_original = fit_i$elbo_original,
+            exploded_elbo = fit_i$exploded_elbo,
+            alpha_stripped_elbo = fit_i$alpha_stripped_elbo,
             fit = fit_i
         )
     }
 
-    elbos_expanded <- vapply(
-        grid_fits, function(x) x$elbo_expanded, numeric(1)
+    exploded_elbos <- vapply(
+        grid_fits, function(x) x$exploded_elbo, numeric(1)
     )
-    elbos_original <- vapply(
-        grid_fits, function(x) x$elbo_original, numeric(1)
+    alpha_stripped_elbos <- vapply(
+        grid_fits, function(x) x$alpha_stripped_elbo, numeric(1)
     )
-    elbos <- if (selection_elbo == "original_model") {
-        elbos_original
+    elbos <- if (selection_elbo == "alpha_stripped") {
+        alpha_stripped_elbos
     } else {
-        elbos_expanded
+        exploded_elbos
     }
     optimal_idx <- which.max(elbos)
 
+    if (length(optimal_idx) == 0L) {
+        stop("ELBO tuning produced no valid ELBO values. Check model convergence.")
+    }
+
     hyper_grid$elbo <- elbos
-    hyper_grid$elbo_expanded <- elbos_expanded
-    hyper_grid$elbo_original <- elbos_original
+    hyper_grid$exploded_elbo <- exploded_elbos
+    hyper_grid$alpha_stripped_elbo <- alpha_stripped_elbos
     optimal_alpha <- hyper_grid$alpha_prior_precision[optimal_idx]
     optimal_b <- if (is_2d) {
         hyper_grid$b_prior_precision[optimal_idx]
@@ -438,7 +507,10 @@ tune_cv <- function(
     X, Y, hyper_grid, is_2d, b_prior_precision,
     k, initials, mu_alpha, standardize, intercept,
     max_iter, tol, seed, update_pi, save_history,
-    disable_global_alpha, loop_op
+    disable_global_alpha,
+    gamma_hyperprior_tau_alpha, r_alpha, d_alpha,
+    gamma_hyperprior_tau_b, r_b, d_b,
+    initialization, loop_op
 ) {
     `%loop_op%` <- loop_op
     p <- ncol(X)
@@ -479,6 +551,7 @@ tune_cv <- function(
                 d_pi_0 = initials$d_pi_0,
                 tau_e = initials$tau_e,
                 update_order = initials$update_order,
+                initialization = initialization,
                 mu_alpha = mu_alpha,
                 alpha_prior_precision = hyper_grid$alpha_prior_precision[gi],
                 b_prior_precision = b_prec,
@@ -489,6 +562,12 @@ tune_cv <- function(
                 update_pi = update_pi,
                 save_history = FALSE,
                 disable_global_alpha = disable_global_alpha,
+                gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
+                r_alpha = r_alpha,
+                d_alpha = d_alpha,
+                gamma_hyperprior_tau_b = gamma_hyperprior_tau_b,
+                r_b = r_b,
+                d_b = d_b,
                 seed = seed
             ),
             error = function(e) NULL
@@ -545,6 +624,7 @@ tune_cv <- function(
         d_pi_0 = initials$d_pi_0,
         tau_e = initials$tau_e,
         update_order = initials$update_order,
+        initialization = initialization,
         mu_alpha = mu_alpha,
         alpha_prior_precision = optimal_alpha,
         b_prior_precision = b_prec_final,
@@ -555,6 +635,12 @@ tune_cv <- function(
         update_pi = update_pi,
         save_history = save_history,
         disable_global_alpha = disable_global_alpha,
+        gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
+        r_alpha = r_alpha,
+        d_alpha = d_alpha,
+        gamma_hyperprior_tau_b = gamma_hyperprior_tau_b,
+        r_b = r_b,
+        d_b = d_b,
         seed = seed
     )
 
@@ -581,7 +667,10 @@ tune_validation <- function(
     hyper_grid, is_2d, b_prior_precision,
     initials, mu_alpha, standardize, intercept,
     max_iter, tol, seed, update_pi, save_history,
-    disable_global_alpha, loop_op
+    disable_global_alpha,
+    gamma_hyperprior_tau_alpha, r_alpha, d_alpha,
+    gamma_hyperprior_tau_b, r_b, d_b,
+    initialization, loop_op
 ) {
     `%loop_op%` <- loop_op
     p <- ncol(X)
@@ -606,6 +695,7 @@ tune_validation <- function(
             d_pi_0 = initials$d_pi_0,
             tau_e = initials$tau_e,
             update_order = initials$update_order,
+            initialization = initialization,
             mu_alpha = mu_alpha,
             alpha_prior_precision = hyper_grid$alpha_prior_precision[i],
             b_prior_precision = b_prec,
@@ -616,6 +706,12 @@ tune_validation <- function(
             update_pi = update_pi,
             save_history = FALSE,
             disable_global_alpha = disable_global_alpha,
+            gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
+            r_alpha = r_alpha,
+            d_alpha = d_alpha,
+            gamma_hyperprior_tau_b = gamma_hyperprior_tau_b,
+            r_b = r_b,
+            d_b = d_b,
             seed = seed
         )
 
@@ -642,7 +738,7 @@ tune_validation <- function(
         data.frame(
             validation_mspe = mspe,
             oracle_mspe = oracle_mspe,
-            elbo = fit_i$elbo
+            exploded_elbo = fit_i$exploded_elbo
         )
     }
 
@@ -669,6 +765,7 @@ tune_validation <- function(
     final_fit <- spxlvb(
         X = X_combined,
         Y = Y_combined,
+        initialization = initialization,
         mu_alpha = mu_alpha,
         alpha_prior_precision = optimal_alpha,
         b_prior_precision = b_prec_final,
@@ -679,6 +776,12 @@ tune_validation <- function(
         update_pi = update_pi,
         save_history = save_history,
         disable_global_alpha = disable_global_alpha,
+        gamma_hyperprior_tau_alpha = gamma_hyperprior_tau_alpha,
+        r_alpha = r_alpha,
+        d_alpha = d_alpha,
+        gamma_hyperprior_tau_b = gamma_hyperprior_tau_b,
+        r_b = r_b,
+        d_b = d_b,
         seed = seed
     )
 

@@ -100,6 +100,24 @@ test_that("spxlvb warns when max_iter is reached without convergence", {
     )
 })
 
+test_that("spxlvb accepts initialization parameter for each strategy", {
+    dat <- setup_small_problem()
+    p <- ncol(dat$X)
+
+    for (strat in c("lasso", "ridge", "lasso_ridge", "null")) {
+        fit <- spxlvb(
+            X = dat$X, Y = dat$Y,
+            initialization = strat,
+            max_iter = 50, tol = 1e-3
+        )
+
+        expect_type(fit, "list")
+        expect_true(is.logical(fit$converged))
+        expect_equal(length(fit$beta), p + 1)
+        expect_true(all(fit$omega >= 0 & fit$omega <= 1))
+    }
+})
+
 test_that("save_history = FALSE omits history matrices", {
     dat <- setup_small_problem()
 

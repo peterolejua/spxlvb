@@ -14,6 +14,7 @@ cv_spxlvb_fit(
   d_pi_0 = NULL,
   tau_e = NULL,
   update_order = NULL,
+  initialization = c("lasso", "ridge", "lasso_ridge", "null"),
   mu_alpha = NULL,
   alpha_prior_precision_grid = c(0, 10^(3:7)),
   b_prior_precision_grid = NULL,
@@ -47,7 +48,9 @@ cv_spxlvb_fit(
 
 \item{update_order}{Optional coordinate update order (0-indexed).}
 
-\item{mu_alpha}{Optional prior means for expansion parameters.}
+\item{initialization}{Character string specifying initialisation strategy.}
+
+\item{mu_alpha}{Optional prior means for explosion parameters.}
 
 \item{alpha_prior_precision_grid}{Grid of \eqn{\tau_\alpha} values.}
 

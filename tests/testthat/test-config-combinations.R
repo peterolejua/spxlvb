@@ -19,8 +19,8 @@ validate_fit <- function(fit, p, has_intercept = TRUE) {
     expect_equal(length(fit$omega), p)
     expect_true(all(fit$omega >= 0 & fit$omega <= 1))
     expect_true(fit$tau_e > 0)
-    expect_true(is.finite(fit$elbo))
-    expect_true(is.finite(fit$elbo_original))
+    expect_true(is.finite(fit$exploded_elbo))
+    expect_true(is.finite(fit$alpha_stripped_elbo))
     expected_beta_len <- if (has_intercept) p + 1 else p
     expect_equal(length(fit$beta), expected_beta_len)
     expect_true(all(is.finite(fit$beta)))
@@ -28,16 +28,16 @@ validate_fit <- function(fit, p, has_intercept = TRUE) {
 
 
 # =====================================================================
-# 1. Full factorial: convergence x update_pi x full_elbo x disable_global_alpha
+# 1. Full factorial: convergence x update_pi x include_exploded_elbo_constants x disable_global_alpha
 # =====================================================================
 
-test_that("all convergence x update_pi x full_elbo x disable_global_alpha combinations work", {
+test_that("all convergence x update_pi x include_exploded_elbo_constants x disable_global_alpha combinations work", {
     dat <- setup_easy_problem()
 
     configs <- expand.grid(
-        convergence = c("elbo", "chisq", "entropy"),
+        convergence = c("elbo_relative", "elbo_absolute", "chisq", "entropy"),
         update_pi = c(FALSE, TRUE),
-        full_elbo = c(FALSE, TRUE),
+        include_exploded_elbo_constants = c(FALSE, TRUE),
         disable_global_alpha = c(FALSE, TRUE),
         stringsAsFactors = FALSE
     )
@@ -47,7 +47,7 @@ test_that("all convergence x update_pi x full_elbo x disable_global_alpha combin
         label <- paste(
             cfg$convergence,
             if (cfg$update_pi) "pi" else "nopi",
-            if (cfg$full_elbo) "full" else "partial",
+            if (cfg$include_exploded_elbo_constants) "full" else "partial",
             if (cfg$disable_global_alpha) "noalpha" else "alpha",
             sep = "_"
         )
@@ -57,7 +57,7 @@ test_that("all convergence x update_pi x full_elbo x disable_global_alpha combin
             max_iter = 30, tol = 1e-2,
             convergence = cfg$convergence,
             update_pi = cfg$update_pi,
-            full_elbo = cfg$full_elbo,
+            include_exploded_elbo_constants = cfg$include_exploded_elbo_constants,
             disable_global_alpha = cfg$disable_global_alpha,
             save_history = FALSE,
             seed = 123
@@ -68,8 +68,8 @@ test_that("all convergence x update_pi x full_elbo x disable_global_alpha combin
         ap <- fit$approximate_posterior
         expect_true(length(ap$elbo_history) == fit$iterations,
             info = paste("ELBO history length mismatch for", label))
-        expect_true(length(ap$elbo_original_history) == fit$iterations,
-            info = paste("Original ELBO history length mismatch for", label))
+        expect_true(length(ap$alpha_stripped_elbo_history) == fit$iterations,
+            info = paste("Alpha-stripped ELBO history length mismatch for", label))
     }
 })
 
@@ -81,7 +81,7 @@ test_that("all convergence x update_pi x full_elbo x disable_global_alpha combin
 test_that("save_history works with all convergence methods", {
     dat <- setup_easy_problem()
 
-    for (conv in c("elbo", "chisq", "entropy")) {
+    for (conv in c("elbo_relative", "elbo_absolute", "chisq", "entropy")) {
         for (save in c(TRUE, FALSE)) {
             fit <- suppressWarnings(spxlvb(
                 X = dat$X, Y = dat$Y,
@@ -125,7 +125,7 @@ test_that("standardize/intercept combinations work with all core options", {
     for (si in std_int_configs) {
         has_int <- si$intercept
 
-        for (conv in c("elbo", "chisq", "entropy")) {
+        for (conv in c("elbo_relative", "elbo_absolute", "chisq", "entropy")) {
             fit <- suppressWarnings(spxlvb(
                 X = dat$X, Y = dat$Y,
                 max_iter = 20, tol = 1e-2,
@@ -150,7 +150,7 @@ test_that("different tolerance values produce valid fits", {
     dat <- setup_easy_problem()
 
     for (tol_val in c(1e-1, 1e-3, 1e-6)) {
-        for (conv in c("elbo", "chisq", "entropy")) {
+        for (conv in c("elbo_relative", "elbo_absolute", "chisq", "entropy")) {
             fit <- suppressWarnings(spxlvb(
                 X = dat$X, Y = dat$Y,
                 max_iter = 100, tol = tol_val,
@@ -192,7 +192,7 @@ test_that("different alpha_prior_precision values work with all options", {
             expect_true(all(is.finite(fit$beta)))
 
             if (tau_a > 0) {
-                expect_true(is.finite(fit$elbo),
+                expect_true(is.finite(fit$exploded_elbo),
                     info = sprintf("tau_a=%g, dga=%s", tau_a, dga))
             }
         }
@@ -236,18 +236,18 @@ test_that("ELBO is non-decreasing under ELBO convergence for all config combos",
     dat <- setup_easy_problem()
 
     key_configs <- list(
-        list(update_pi = FALSE, full_elbo = FALSE, dga = FALSE),
-        list(update_pi = TRUE, full_elbo = FALSE, dga = FALSE),
-        list(update_pi = FALSE, full_elbo = TRUE, dga = FALSE),
-        list(update_pi = FALSE, full_elbo = FALSE, dga = TRUE),
-        list(update_pi = TRUE, full_elbo = TRUE, dga = FALSE),
-        list(update_pi = TRUE, full_elbo = TRUE, dga = TRUE)
+        list(update_pi = FALSE, include_exploded_elbo_constants = FALSE, dga = FALSE),
+        list(update_pi = TRUE, include_exploded_elbo_constants = FALSE, dga = FALSE),
+        list(update_pi = FALSE, include_exploded_elbo_constants = TRUE, dga = FALSE),
+        list(update_pi = FALSE, include_exploded_elbo_constants = FALSE, dga = TRUE),
+        list(update_pi = TRUE, include_exploded_elbo_constants = TRUE, dga = FALSE),
+        list(update_pi = TRUE, include_exploded_elbo_constants = TRUE, dga = TRUE)
     )
 
     for (cfg in key_configs) {
         label <- paste(
             if (cfg$update_pi) "pi" else "nopi",
-            if (cfg$full_elbo) "full" else "partial",
+            if (cfg$include_exploded_elbo_constants) "full" else "partial",
             if (cfg$dga) "noalpha" else "alpha",
             sep = "_"
         )
@@ -255,9 +255,9 @@ test_that("ELBO is non-decreasing under ELBO convergence for all config combos",
         fit <- suppressWarnings(spxlvb(
             X = dat$X, Y = dat$Y,
             max_iter = 100, tol = 1e-6,
-            convergence = "elbo",
+            convergence = "elbo_relative",
             update_pi = cfg$update_pi,
-            full_elbo = cfg$full_elbo,
+            include_exploded_elbo_constants = cfg$include_exploded_elbo_constants,
             disable_global_alpha = cfg$dga,
             save_history = FALSE,
             seed = 123
@@ -329,7 +329,7 @@ test_that("tune_spxlvb selection_elbo variants both work", {
     dat <- setup_easy_problem()
     small_grid <- c(100, 1000)
 
-    for (sel in c("expanded_model", "original_model")) {
+    for (sel in c("exploded_model", "alpha_stripped")) {
         result <- suppressWarnings(suppressMessages(
             tune_spxlvb(
                 X = dat$X, Y = dat$Y,
@@ -344,12 +344,12 @@ test_that("tune_spxlvb selection_elbo variants both work", {
 
         expect_type(result, "list")
         expect_true(
-            "elbo_expanded" %in% names(result$tuning_grid),
-            info = paste("Missing elbo_expanded column for", sel)
+            "exploded_elbo" %in% names(result$tuning_grid),
+            info = paste("Missing exploded_elbo column for", sel)
         )
         expect_true(
-            "elbo_original" %in% names(result$tuning_grid),
-            info = paste("Missing elbo_original column for", sel)
+            "alpha_stripped_elbo" %in% names(result$tuning_grid),
+            info = paste("Missing alpha_stripped_elbo column for", sel)
         )
         validate_fit(result$fit, dat$p)
     }
@@ -387,5 +387,114 @@ test_that("tune_spxlvb validation criterion works with core options", {
         expect_equal(result$refitted_on, "training_plus_validation")
         n_combined <- dat$n + n_val
         validate_fit(result$fit, dat$p)
+    }
+})
+
+
+# =====================================================================
+# 11. gamma_hyperprior_tau_alpha x convergence x disable_global_alpha combinations
+# =====================================================================
+
+test_that("gamma_hyperprior_tau_alpha works with all convergence x disable_global_alpha combos", {
+    dat <- setup_easy_problem()
+
+    for (conv in c("elbo_relative", "elbo_absolute", "chisq", "entropy")) {
+        for (dga in c(FALSE, TRUE)) {
+            label <- paste("gamma", conv,
+                if (dga) "noalpha" else "alpha", sep = "_")
+
+            fit <- suppressWarnings(spxlvb(
+                X = dat$X, Y = dat$Y,
+                max_iter = 30, tol = 1e-2,
+                convergence = conv,
+                disable_global_alpha = dga,
+                gamma_hyperprior_tau_alpha = TRUE,
+                save_history = FALSE,
+                seed = 123
+            ))
+
+            validate_fit(fit, dat$p, has_intercept = TRUE)
+            expect_true(is.finite(fit$tau_alpha),
+                info = paste("tau_alpha not finite for", label))
+            expect_true(fit$tau_alpha > 0,
+                info = paste("tau_alpha not positive for", label))
+            expect_equal(
+                length(fit$tau_alpha_history), fit$iterations,
+                info = paste("tau_alpha_history length mismatch for", label)
+            )
+        }
+    }
+})
+
+
+# =====================================================================
+# 12. gamma_hyperprior_tau_b x convergence x disable_global_alpha combinations
+# =====================================================================
+
+test_that("gamma_hyperprior_tau_b works with all convergence x disable_global_alpha combos", {
+    dat <- setup_easy_problem()
+
+    for (conv in c("elbo_relative", "elbo_absolute", "chisq", "entropy")) {
+        for (dga in c(FALSE, TRUE)) {
+            label <- paste("gamma_b", conv,
+                if (dga) "noalpha" else "alpha", sep = "_")
+
+            fit <- suppressWarnings(spxlvb(
+                X = dat$X, Y = dat$Y,
+                max_iter = 30, tol = 1e-2,
+                convergence = conv,
+                disable_global_alpha = dga,
+                gamma_hyperprior_tau_b = TRUE,
+                save_history = FALSE,
+                seed = 123
+            ))
+
+            validate_fit(fit, dat$p, has_intercept = TRUE)
+            expect_true(is.finite(fit$tau_b_common),
+                info = paste("tau_b_common not finite for", label))
+            expect_true(fit$tau_b_common > 0,
+                info = paste("tau_b_common not positive for", label))
+            expect_equal(
+                length(fit$tau_b_common_history), fit$iterations,
+                info = paste("tau_b_common_history length mismatch for", label)
+            )
+        }
+    }
+})
+
+
+# =====================================================================
+# 13. Both gamma hyperpriors x convergence combinations
+# =====================================================================
+
+test_that("both gamma hyperpriors work with all convergence methods", {
+    dat <- setup_easy_problem()
+
+    for (conv in c("elbo_relative", "elbo_absolute", "chisq", "entropy")) {
+        label <- paste("both", conv, sep = "_")
+
+        fit <- suppressWarnings(spxlvb(
+            X = dat$X, Y = dat$Y,
+            max_iter = 30, tol = 1e-2,
+            convergence = conv,
+            gamma_hyperprior_tau_alpha = TRUE,
+            gamma_hyperprior_tau_b = TRUE,
+            save_history = FALSE,
+            seed = 123
+        ))
+
+        validate_fit(fit, dat$p, has_intercept = TRUE)
+        expect_true(is.finite(fit$tau_alpha),
+            info = paste("tau_alpha not finite for", label))
+        expect_true(is.finite(fit$tau_b_common),
+            info = paste("tau_b_common not finite for", label))
+        expect_equal(
+            length(fit$tau_alpha_history), fit$iterations,
+            info = paste("tau_alpha_history length mismatch for", label)
+        )
+        expect_equal(
+            length(fit$tau_b_common_history), fit$iterations,
+            info = paste("tau_b_common_history length mismatch for", label)
+        )
     }
 })

@@ -2,7 +2,7 @@
 % Please edit documentation in R/get_initials_spxlvb.R
 \name{get_initials_spxlvb}
 \alias{get_initials_spxlvb}
-\title{Get initial values for spxlvb}
+\title{Generate Initial Values for Variational Inference in Sparse Regression}
 \usage{
 get_initials_spxlvb(
   X,
@@ -13,41 +13,64 @@ get_initials_spxlvb(
   d_pi_0 = NULL,
   tau_e = NULL,
   update_order = NULL,
+  initialization = c("lasso", "ridge", "lasso_ridge", "null"),
   seed = 12376
 )
 }
 \arguments{
-\item{X}{A design matrix.}
+\item{X}{A design matrix (assumed already standardized when called
+from \code{\link{spxlvb}}).}
 
-\item{Y}{A response vector.}
+\item{Y}{A response vector (assumed already centered).}
 
-\item{mu_0}{Initial mean.}
+\item{mu_0}{Optional numeric vector. Initial variational means.}
 
-\item{omega_0}{Initial omega.}
+\item{omega_0}{Optional numeric vector. Initial inclusion probabilities.}
 
-\item{c_pi_0}{Initial c_pi.}
+\item{c_pi_0}{Optional numeric. Prior Beta shape1 for \eqn{\pi}.}
 
-\item{d_pi_0}{Initial d_pi.}
+\item{d_pi_0}{Optional numeric. Prior Beta shape2 for \eqn{\pi}.}
 
-\item{tau_e}{Initial tau_e.}
+\item{tau_e}{Optional numeric. Error precision.}
 
-\item{update_order}{Initial update order.}
+\item{update_order}{Optional integer vector or \code{"random"}.
+Coordinate update order (0-indexed for C++).}
 
-\item{seed}{Seed for reproducibility.}
+\item{initialization}{Character string specifying the initialization
+strategy. One of:
+\describe{
+\item{\code{"lasso"} (default)}{LASSO via \code{cv.glmnet(alpha=1)}.
+Coefficients are de-shrunk by OLS rescaling. Inclusion probabilities
+are set high for LASSO-selected variables. Update order is ascending
+\eqn{|\mu_{0,j}|}.}
+\item{\code{"ridge"}}{Ridge via \code{cv.glmnet(alpha=0)}.
+The top 10\\% of coefficients by absolute value get high inclusion
+probability. Update order is ascending \eqn{|\mu_{0,j}|}.}
+\item{\code{"lasso_ridge"}}{LASSO for variable selection (omega)
+and noise estimation, ridge for coefficient magnitudes (mu).
+Combines the sparsity structure from LASSO with the less-shrunk
+coefficients from ridge, following the spirit of
+Ray and Szabo (2022). Update order is ascending \eqn{|\mu_{0,j}|}.}
+\item{\code{"null"}}{Prior-based initialization with no data-driven
+regression. Sets \eqn{\mu_0 = 0}, \eqn{\omega_0 = \hat\pi}
+(prior mean), and \eqn{\tau_e = 1/\mathrm{Var}(Y)}. Update order
+is random. Does not call \code{cv.glmnet}, making it the fastest
+strategy.}
+}}
+
+\item{seed}{Seed for reproducibility (passed to \code{cv.glmnet} and
+random update order generation).}
 }
 \value{
 A named list with elements \code{mu_0}, \code{omega_0},
 \code{c_pi_0}, \code{d_pi_0}, \code{tau_e}, and \code{update_order}.
 }
 \description{
-This function initializes parameters for the spxlvb model.
-}
-\details{
-Generate Initial Values for Variational Inference in Sparse Regression
-
-This helper function estimates initial values for variational parameters such as
-regression coefficients (\code{mu}), spike probabilities (\code{omega}), and hyperparameters
-like \code{tau_e}, \code{c_pi}, and \code{d_pi} using LASSO and Ridge regression fits.
+Estimates initial values for variational parameters (regression
+coefficients \code{mu_0}, inclusion probabilities \code{omega_0},
+error precision \code{tau_e}, and Beta prior parameters \code{c_pi_0},
+\code{d_pi_0}) using one of four initialization strategies.
+Pre-supplied values always override the strategy.
 }
 \examples{
 \donttest{
@@ -55,5 +78,6 @@ set.seed(1)
 X <- matrix(rnorm(30 * 20), 30, 20)
 Y <- rnorm(30)
 init <- get_initials_spxlvb(X = X, Y = Y)
+init_null <- get_initials_spxlvb(X = X, Y = Y, initialization = "null")
 }
 }

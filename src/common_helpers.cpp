@@ -11,12 +11,13 @@ Rcpp::List compute_elbo_cpp(
     const arma::vec& omega,
     const arma::vec& tau_b,
     const arma::vec& mu_alpha,
-    double Y2,
-    double t_YW,
-    double t_W2,
+    double y_sq,
+    double y_dot_eta_bar,
+    double zeta,
     double tau_alpha,
     double tau_e,
-    double pi_fixed
+    double c_pi,
+    double d_pi
 ) {
   int p = mu.n_elem;
 
@@ -31,42 +32,46 @@ Rcpp::List compute_elbo_cpp(
     if (!R_finite(l_omega_m1(i)))  l_omega_m1(i)  = -500.0;
   }
 
-  arma::vec term_a = omega % (arma::log(sigma) - l_omega);
-  double sum_term_a = arma::accu(term_a);
+  arma::vec slab_entropy_terms = omega % (arma::log(sigma) - l_omega);
+  double slab_entropy = arma::accu(slab_entropy_terms);
 
-  arma::vec term_b = one_minus_omega %
+  arma::vec spike_entropy_terms = one_minus_omega %
     (arma::log(arma::sqrt(tau_e * tau_b)) + l_omega_m1);
-  double sum_term_b = -arma::accu(term_b);
+  double spike_entropy = -arma::accu(spike_entropy_terms);
 
-  arma::vec inside = omega % (arma::square(mu) + sigma2) +
+  arma::vec expected_b_sq = omega % (arma::square(mu) + sigma2) +
     one_minus_omega % (1.0 / (tau_e * tau_b));
-  double slab_penalty = arma::accu(tau_b % inside);
 
-  double resid_term = Y2 - 2.0 * t_YW + t_W2;
-  double alpha_penalty = tau_alpha * arma::accu(arma::square(1.0 - mu_alpha));
+  double residual_sq = y_sq - 2.0 * y_dot_eta_bar + zeta;
 
-  double data_fit = -0.5 * tau_e * resid_term;
+  double data_fit = -0.5 * tau_e * residual_sq;
 
-  double slab_prior = 0.5 * arma::accu(arma::log(tau_e * tau_b))
-                    - 0.5 * tau_e * slab_penalty;
+  double slab_normalisation = 0.5 * arma::accu(arma::log(tau_e * tau_b));
+  double slab_penalty = -0.5 * tau_e * arma::accu(tau_b % expected_b_sq);
 
-  double alpha_prior = 0.5 * (p + 1) * std::log(tau_e * tau_alpha)
-                     - 0.5 * tau_e * alpha_penalty;
+  double alpha_normalisation = 0.5 * (p + 1) * std::log(tau_e * tau_alpha);
+  double alpha_penalty = 0.5 * tau_e * tau_alpha * arma::accu(arma::square(1.0 - mu_alpha));
 
-  double logodds = std::log(pi_fixed / (1.0 - pi_fixed));
-  double spike_prior = logodds * arma::accu(omega);
+  double sum_omega = arma::accu(omega);
+  double pi_posterior = R::lbeta(c_pi + sum_omega, d_pi + (p - sum_omega));
+  double pi_normalisation = -R::lbeta(c_pi, d_pi);
 
-  double elbo = sum_term_a + sum_term_b +
-                data_fit + slab_prior + alpha_prior + spike_prior;
+  double elbo = slab_entropy + spike_entropy +
+                data_fit + slab_normalisation + slab_penalty +
+                alpha_normalisation - alpha_penalty +
+                pi_posterior + pi_normalisation;
 
   return Rcpp::List::create(
-    Rcpp::Named("ELBO")           = elbo,
-    Rcpp::Named("slab_entropy")   = sum_term_a,
-    Rcpp::Named("spike_entropy")  = sum_term_b,
-    Rcpp::Named("data_fit")       = data_fit,
-    Rcpp::Named("slab_prior")     = slab_prior,
-    Rcpp::Named("alpha_prior")    = alpha_prior,
-    Rcpp::Named("spike_prior")    = spike_prior
+    Rcpp::Named("ELBO")                  = elbo,
+    Rcpp::Named("slab_entropy")          = slab_entropy,
+    Rcpp::Named("spike_entropy")         = spike_entropy,
+    Rcpp::Named("data_fit")              = data_fit,
+    Rcpp::Named("slab_normalisation")    = slab_normalisation,
+    Rcpp::Named("slab_penalty")          = slab_penalty,
+    Rcpp::Named("alpha_normalisation")   = alpha_normalisation,
+    Rcpp::Named("alpha_penalty")         = alpha_penalty,
+    Rcpp::Named("pi_posterior")          = pi_posterior,
+    Rcpp::Named("pi_normalisation")      = pi_normalisation
   );
 }
 
@@ -76,9 +81,9 @@ double compute_elbo_scalar(
     const arma::vec& omega,
     const arma::vec& tau_b,
     const arma::vec& mu_alpha,
-    double Y2,
-    double t_YW,
-    double t_W2,
+    double y_sq,
+    double y_dot_eta_bar,
+    double zeta,
     double tau_alpha,
     double tau_e,
     double pi_fixed
@@ -96,34 +101,32 @@ double compute_elbo_scalar(
     if (!R_finite(l_omega_m1(i))) l_omega_m1(i) = -500.0;
   }
 
-  double sum_term_a = arma::accu(omega % (arma::log(sigma) - l_omega));
+  double slab_entropy = arma::accu(omega % (arma::log(sigma) - l_omega));
 
-  arma::vec log_tau_e_tau_b = arma::log(tau_e * tau_b);
-  double sum_term_b = -arma::accu(one_minus_omega %
-    (0.5 * log_tau_e_tau_b + l_omega_m1));
+  arma::vec log_slab_prec = arma::log(tau_e * tau_b);
+  double spike_entropy = -arma::accu(one_minus_omega %
+    (0.5 * log_slab_prec + l_omega_m1));
 
-  arma::vec inside = omega % (arma::square(mu) + sigma2) +
+  arma::vec expected_b_sq = omega % (arma::square(mu) + sigma2) +
     one_minus_omega % (1.0 / (tau_e * tau_b));
-  double slab_penalty = arma::accu(tau_b % inside);
 
-  double resid_term = Y2 - 2.0 * t_YW + t_W2;
+  double residual_sq = y_sq - 2.0 * y_dot_eta_bar + zeta;
 
+  double data_fit = -0.5 * tau_e * residual_sq;
+
+  double slab_normalisation = 0.5 * arma::accu(log_slab_prec);
+  double slab_penalty = -0.5 * tau_e * arma::accu(tau_b % expected_b_sq);
+
+  double alpha_normalisation = 0.5 * (p + 1) * std::log(tau_e * tau_alpha);
   arma::vec alpha_diff = 1.0 - mu_alpha;
-  double alpha_penalty = tau_alpha * arma::dot(alpha_diff, alpha_diff);
+  double alpha_penalty = 0.5 * tau_e * tau_alpha * arma::dot(alpha_diff, alpha_diff);
 
-  double data_fit = -0.5 * tau_e * resid_term;
+  double logit_pi = std::log(pi_fixed / (1.0 - pi_fixed));
+  double pi_posterior = logit_pi * arma::accu(omega);
 
-  double slab_prior = 0.5 * arma::accu(log_tau_e_tau_b)
-                    - 0.5 * tau_e * slab_penalty;
-
-  double alpha_prior = 0.5 * (p + 1) * std::log(tau_e * tau_alpha)
-                     - 0.5 * tau_e * alpha_penalty;
-
-  double logodds = std::log(pi_fixed / (1.0 - pi_fixed));
-  double spike_prior = logodds * arma::accu(omega);
-
-  return sum_term_a + sum_term_b +
-         data_fit + slab_prior + alpha_prior + spike_prior;
+  return slab_entropy + spike_entropy +
+         data_fit + slab_normalisation + slab_penalty +
+         alpha_normalisation - alpha_penalty + pi_posterior;
 }
 
 double sigmoid_cpp(const double &x) {
@@ -134,36 +137,4 @@ double sigmoid_cpp(const double &x) {
   } else {
     return 1 / (1 + std::exp(-x));
   }
-}
-
-VBUpdate2x2 compute_vb_update_2x2(
-    double X_j_sq,
-    double dot_Xj_Wj,
-    double YXj,
-    double dot_Y_Wj,
-    double W_j_squared,
-    double s_j,
-    double tau_e,
-    double tau_b_j,
-    double tau_alpha,
-    double mu_alpha_j
-) {
-  VBUpdate2x2 res;
-
-  res.L00 = tau_e * s_j * X_j_sq + tau_e * tau_b_j;
-  res.L01 = tau_e * s_j * dot_Xj_Wj;
-  res.L11 = tau_e * W_j_squared + tau_e * tau_alpha;
-
-  double rhs0 = s_j * tau_e * YXj;
-  double rhs1 = tau_e * dot_Y_Wj + tau_e * tau_alpha * mu_alpha_j;
-
-  double det = res.L00 * res.L11 - res.L01 * res.L01;
-  double eps = std::numeric_limits<double>::epsilon();
-  if (det < eps) det = eps;
-  double inv_det = 1.0 / det;
-
-  res.eta0 = inv_det * (res.L11 * rhs0 - res.L01 * rhs1);
-  res.eta1 = inv_det * (-res.L01 * rhs0 + res.L00 * rhs1);
-
-  return res;
 }
