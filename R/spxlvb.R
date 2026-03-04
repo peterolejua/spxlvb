@@ -214,7 +214,12 @@ spxlvb <- function(
   gamma_hyperprior_tau_b = FALSE,
   r_b = NULL,
   d_b = NULL,
-  seed = 12376 # seed for cv.glmnet initials
+  seed = 12376, # seed for cv.glmnet initials
+  use_path_b = TRUE,
+  use_path_c = FALSE,
+  simultaneous_remap = FALSE,
+  use_annealing = FALSE,
+  anneal_iterations = 50
 ) {
   initialization <- match.arg(initialization)
   convergence <- match.arg(convergence)
@@ -225,6 +230,19 @@ spxlvb <- function(
 
   if (intercept && !standardize) {
     stop("intercept = TRUE requires standardize = TRUE")
+  }
+
+  if (use_path_b && use_path_c) {
+    stop("use_path_b and use_path_c are mutually exclusive")
+  }
+
+  if (use_path_c) {
+    warning("use_path_c is experimental and retained for reproducibility. ",
+            "Path B (use_path_b = TRUE, now the default) is recommended for production use.")
+  }
+
+  if (use_annealing) {
+    warning("use_annealing is experimental. Path B without annealing is recommended.")
   }
 
   p <- ncol(X)
@@ -289,35 +307,72 @@ spxlvb <- function(
     }
   }
 
-  arg <- list(
-    X_cs,
-    Y_c,
-    mu_0,
-    omega_0,
-    c_pi_0,
-    d_pi_0,
-    tau_e,
-    update_order,
-    mu_alpha,
-    alpha_prior_precision / tau_e, # = tau_alpha (scalar)
-    b_prior_precision / tau_e, # = tau_b (vector)
-    max_iter,
-    tol,
-    save_history,
-    convergence_method,
-    update_pi,
-    elbo_offset,
-    disable_global_alpha,
-    track_coordinate_exploded_elbo,
-    track_all_criteria,
-    gamma_hyperprior_tau_alpha,
-    if (gamma_hyperprior_tau_alpha) r_alpha else 0,
-    if (gamma_hyperprior_tau_alpha) d_alpha else 0,
-    gamma_hyperprior_tau_b,
-    if (gamma_hyperprior_tau_b) r_b else 0,
-    if (gamma_hyperprior_tau_b) d_b else 0
-  )
-  fn <- "run_vb_updates_cpp"
+  if (use_path_c) {
+    arg <- list(
+      X_cs,
+      Y_c,
+      mu_0,
+      omega_0,
+      c_pi_0,
+      d_pi_0,
+      tau_e,
+      update_order,
+      mu_alpha,
+      alpha_prior_precision / tau_e,
+      b_prior_precision / tau_e,
+      max_iter,
+      tol,
+      save_history,
+      convergence_method,
+      update_pi,
+      elbo_offset,
+      disable_global_alpha,
+      track_all_criteria,
+      gamma_hyperprior_tau_alpha,
+      if (gamma_hyperprior_tau_alpha) r_alpha else 0,
+      if (gamma_hyperprior_tau_alpha) d_alpha else 0,
+      gamma_hyperprior_tau_b,
+      if (gamma_hyperprior_tau_b) r_b else 0,
+      if (gamma_hyperprior_tau_b) d_b else 0,
+      simultaneous_remap,
+      use_annealing,
+      as.integer(anneal_iterations)
+    )
+    fn <- "run_vb_path_c_cpp"
+  } else {
+    arg <- list(
+      X_cs,
+      Y_c,
+      mu_0,
+      omega_0,
+      c_pi_0,
+      d_pi_0,
+      tau_e,
+      update_order,
+      mu_alpha,
+      alpha_prior_precision / tau_e,
+      b_prior_precision / tau_e,
+      max_iter,
+      tol,
+      save_history,
+      convergence_method,
+      update_pi,
+      elbo_offset,
+      disable_global_alpha,
+      track_coordinate_exploded_elbo,
+      track_all_criteria,
+      gamma_hyperprior_tau_alpha,
+      if (gamma_hyperprior_tau_alpha) r_alpha else 0,
+      if (gamma_hyperprior_tau_alpha) d_alpha else 0,
+      gamma_hyperprior_tau_b,
+      if (gamma_hyperprior_tau_b) r_b else 0,
+      if (gamma_hyperprior_tau_b) d_b else 0,
+      FALSE,       # use_joint_optimization (internal)
+      10L,         # max_fp_iter (internal)
+      use_path_b
+    )
+    fn <- "run_vb_updates_cpp"
+  }
 
   approximate_posterior <- do.call(fn, arg)
 
