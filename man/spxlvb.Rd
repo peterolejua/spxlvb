@@ -34,7 +34,13 @@ spxlvb(
   gamma_hyperprior_tau_b = FALSE,
   r_b = NULL,
   d_b = NULL,
-  seed = 12376
+  seed = 12376,
+  use_path_b = FALSE,
+  use_path_c = FALSE,
+  use_marginal_path = TRUE,
+  simultaneous_remap = FALSE,
+  use_annealing = FALSE,
+  anneal_iterations = 50
 )
 }
 \arguments{

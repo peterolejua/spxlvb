@@ -37,7 +37,9 @@ Rcpp::List run_vb_updates_cpp(
     double r_b = 0.0,
     double d_b = 0.0,
     bool use_joint_optimization = false,
-    int max_fp_iter = 10
+    int max_fp_iter = 10,
+    bool use_path_b = false,
+    bool use_marginal_path = false
 ) {
   int n = X.n_rows;
   int p = X.n_cols;
@@ -127,6 +129,7 @@ Rcpp::List run_vb_updates_cpp(
   arma::vec eta_bar_prev((convergence_method == 1 || track_all_criteria) ? n : 0);
   double A_running = 1.0;
   arma::vec A_snap(p, fill::ones);
+
   for (int iter = 0; iter < max_iter; ++iter) {
     Rcpp::checkUserInterrupt();
     A_running = 1.0;
@@ -231,6 +234,37 @@ Rcpp::List run_vb_updates_cpp(
         }
         mu(j) = mu_j_new + Xj_eta_bar_mj * (1.0 - alpha_fp) / denom_j;
         optimal_alpha_j = alpha_fp;
+      } else if (use_path_b) {
+        // Path B (Dr. McLain's ordering): phi_j -> alpha_j* -> mu_j(alpha_j*)
+        // Step 1: phi_j = sigmoid(logit_omega_j) WITHOUT g corrections
+        omega(j) = sigmoid_cpp(logit_omega_j);
+
+        // Step 2: alpha_j* using phi_j and previous-iterate mu (true_mu_j)
+        optimal_alpha_j = (y_dot_eta_bar_mj
+                           - omega(j) * true_mu_j * Xj_eta_bar_mj
+                           + tau_alpha * mu_alpha(j))
+                          / (zeta_mj + tau_alpha);
+
+        // Step 3: mu_j(alpha_j*) = (r - alpha_j* * c) / a
+        mu(j) = mu_j_new + Xj_eta_bar_mj * (1.0 - optimal_alpha_j) / denom_j;
+
+      } else if (use_marginal_path) {
+        // Path C (marginalisation-first): phi_j -> mu_j^marg -> alpha_j*
+        // Step 1: phi_j = sigmoid(logit_omega_j) WITHOUT g corrections
+        omega(j) = sigmoid_cpp(logit_omega_j);
+
+        // Step 2: mu_j^marg and sigma_j^marg from marginalising alpha_j
+        // B = zeta_{-j} + tau_alpha, m = y_dot_eta_bar_{-j} + tau_alpha * mu_alpha_j
+        // D = a * B - c^2 where a = denom_j, c = X_j' eta_bar_{-j}
+        double B_j = zeta_mj + tau_alpha;
+        double m_j = y_dot_eta_bar_mj + tau_alpha * mu_alpha(j);
+        double D_j = denom_j * B_j - Xj_eta_bar_mj * Xj_eta_bar_mj;
+        mu(j) = (B_j * Xty(j) - Xj_eta_bar_mj * m_j) / D_j;
+        sigma(j) = std::sqrt(B_j / (tau_e * D_j));
+
+        // Step 3: alpha_j* from fresh mu_j^marg
+        optimal_alpha_j = (m_j - omega(j) * mu(j) * Xj_eta_bar_mj) / B_j;
+
       } else {
         double diff_spike = 1.0 - alpha_mean_spike;
         double diff_slab  = 1.0 - alpha_mean_slab;

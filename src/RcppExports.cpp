@@ -34,8 +34,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // run_vb_updates_cpp
-Rcpp::List run_vb_updates_cpp(const arma::mat& X, const arma::vec& Y, arma::vec mu, arma::vec omega, double c_pi, double d_pi, double tau_e, const arma::uvec& update_order, arma::vec mu_alpha, double tau_alpha, arma::vec tau_b, int max_iter, double tol, bool save_history, int convergence_method, bool update_pi, double elbo_offset, bool disable_global_alpha, bool track_coordinate_exploded_elbo, bool track_all_criteria, bool use_gamma_hyperprior_tau_alpha, double r_alpha, double d_alpha, bool use_gamma_hyperprior_tau_b, double r_b, double d_b, bool use_joint_optimization, int max_fp_iter);
-RcppExport SEXP _spxlvb_run_vb_updates_cpp(SEXP XSEXP, SEXP YSEXP, SEXP muSEXP, SEXP omegaSEXP, SEXP c_piSEXP, SEXP d_piSEXP, SEXP tau_eSEXP, SEXP update_orderSEXP, SEXP mu_alphaSEXP, SEXP tau_alphaSEXP, SEXP tau_bSEXP, SEXP max_iterSEXP, SEXP tolSEXP, SEXP save_historySEXP, SEXP convergence_methodSEXP, SEXP update_piSEXP, SEXP elbo_offsetSEXP, SEXP disable_global_alphaSEXP, SEXP track_coordinate_exploded_elboSEXP, SEXP track_all_criteriaSEXP, SEXP use_gamma_hyperprior_tau_alphaSEXP, SEXP r_alphaSEXP, SEXP d_alphaSEXP, SEXP use_gamma_hyperprior_tau_bSEXP, SEXP r_bSEXP, SEXP d_bSEXP, SEXP use_joint_optimizationSEXP, SEXP max_fp_iterSEXP) {
+Rcpp::List run_vb_updates_cpp(const arma::mat& X, const arma::vec& Y, arma::vec mu, arma::vec omega, double c_pi, double d_pi, double tau_e, const arma::uvec& update_order, arma::vec mu_alpha, double tau_alpha, arma::vec tau_b, int max_iter, double tol, bool save_history, int convergence_method, bool update_pi, double elbo_offset, bool disable_global_alpha, bool track_coordinate_exploded_elbo, bool track_all_criteria, bool use_gamma_hyperprior_tau_alpha, double r_alpha, double d_alpha, bool use_gamma_hyperprior_tau_b, double r_b, double d_b, bool use_joint_optimization, int max_fp_iter, bool use_path_b, bool use_marginal_path);
+RcppExport SEXP _spxlvb_run_vb_updates_cpp(SEXP XSEXP, SEXP YSEXP, SEXP muSEXP, SEXP omegaSEXP, SEXP c_piSEXP, SEXP d_piSEXP, SEXP tau_eSEXP, SEXP update_orderSEXP, SEXP mu_alphaSEXP, SEXP tau_alphaSEXP, SEXP tau_bSEXP, SEXP max_iterSEXP, SEXP tolSEXP, SEXP save_historySEXP, SEXP convergence_methodSEXP, SEXP update_piSEXP, SEXP elbo_offsetSEXP, SEXP disable_global_alphaSEXP, SEXP track_coordinate_exploded_elboSEXP, SEXP track_all_criteriaSEXP, SEXP use_gamma_hyperprior_tau_alphaSEXP, SEXP r_alphaSEXP, SEXP d_alphaSEXP, SEXP use_gamma_hyperprior_tau_bSEXP, SEXP r_bSEXP, SEXP d_bSEXP, SEXP use_joint_optimizationSEXP, SEXP max_fp_iterSEXP, SEXP use_path_bSEXP, SEXP use_marginal_pathSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -67,14 +67,55 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type d_b(d_bSEXP);
     Rcpp::traits::input_parameter< bool >::type use_joint_optimization(use_joint_optimizationSEXP);
     Rcpp::traits::input_parameter< int >::type max_fp_iter(max_fp_iterSEXP);
-    rcpp_result_gen = Rcpp::wrap(run_vb_updates_cpp(X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history, convergence_method, update_pi, elbo_offset, disable_global_alpha, track_coordinate_exploded_elbo, track_all_criteria, use_gamma_hyperprior_tau_alpha, r_alpha, d_alpha, use_gamma_hyperprior_tau_b, r_b, d_b, use_joint_optimization, max_fp_iter));
+    Rcpp::traits::input_parameter< bool >::type use_path_b(use_path_bSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_marginal_path(use_marginal_pathSEXP);
+    rcpp_result_gen = Rcpp::wrap(run_vb_updates_cpp(X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history, convergence_method, update_pi, elbo_offset, disable_global_alpha, track_coordinate_exploded_elbo, track_all_criteria, use_gamma_hyperprior_tau_alpha, r_alpha, d_alpha, use_gamma_hyperprior_tau_b, r_b, d_b, use_joint_optimization, max_fp_iter, use_path_b, use_marginal_path));
+    return rcpp_result_gen;
+END_RCPP
+}
+// run_vb_path_c_cpp
+Rcpp::List run_vb_path_c_cpp(const arma::mat& X, const arma::vec& Y, arma::vec mu, arma::vec omega, double c_pi, double d_pi, double tau_e, const arma::uvec& update_order, arma::vec mu_alpha, double tau_alpha, arma::vec tau_b, int max_iter, double tol, bool save_history, int convergence_method, bool update_pi, double elbo_offset, bool disable_global_alpha, bool track_all_criteria, bool use_gamma_hyperprior_tau_alpha, double r_alpha, double d_alpha, bool use_gamma_hyperprior_tau_b, double r_b, double d_b, bool simultaneous_remap, bool use_annealing, int anneal_iterations);
+RcppExport SEXP _spxlvb_run_vb_path_c_cpp(SEXP XSEXP, SEXP YSEXP, SEXP muSEXP, SEXP omegaSEXP, SEXP c_piSEXP, SEXP d_piSEXP, SEXP tau_eSEXP, SEXP update_orderSEXP, SEXP mu_alphaSEXP, SEXP tau_alphaSEXP, SEXP tau_bSEXP, SEXP max_iterSEXP, SEXP tolSEXP, SEXP save_historySEXP, SEXP convergence_methodSEXP, SEXP update_piSEXP, SEXP elbo_offsetSEXP, SEXP disable_global_alphaSEXP, SEXP track_all_criteriaSEXP, SEXP use_gamma_hyperprior_tau_alphaSEXP, SEXP r_alphaSEXP, SEXP d_alphaSEXP, SEXP use_gamma_hyperprior_tau_bSEXP, SEXP r_bSEXP, SEXP d_bSEXP, SEXP simultaneous_remapSEXP, SEXP use_annealingSEXP, SEXP anneal_iterationsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type omega(omegaSEXP);
+    Rcpp::traits::input_parameter< double >::type c_pi(c_piSEXP);
+    Rcpp::traits::input_parameter< double >::type d_pi(d_piSEXP);
+    Rcpp::traits::input_parameter< double >::type tau_e(tau_eSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type update_order(update_orderSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type mu_alpha(mu_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type tau_alpha(tau_alphaSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type tau_b(tau_bSEXP);
+    Rcpp::traits::input_parameter< int >::type max_iter(max_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
+    Rcpp::traits::input_parameter< bool >::type save_history(save_historySEXP);
+    Rcpp::traits::input_parameter< int >::type convergence_method(convergence_methodSEXP);
+    Rcpp::traits::input_parameter< bool >::type update_pi(update_piSEXP);
+    Rcpp::traits::input_parameter< double >::type elbo_offset(elbo_offsetSEXP);
+    Rcpp::traits::input_parameter< bool >::type disable_global_alpha(disable_global_alphaSEXP);
+    Rcpp::traits::input_parameter< bool >::type track_all_criteria(track_all_criteriaSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_gamma_hyperprior_tau_alpha(use_gamma_hyperprior_tau_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_alpha(r_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type d_alpha(d_alphaSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_gamma_hyperprior_tau_b(use_gamma_hyperprior_tau_bSEXP);
+    Rcpp::traits::input_parameter< double >::type r_b(r_bSEXP);
+    Rcpp::traits::input_parameter< double >::type d_b(d_bSEXP);
+    Rcpp::traits::input_parameter< bool >::type simultaneous_remap(simultaneous_remapSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_annealing(use_annealingSEXP);
+    Rcpp::traits::input_parameter< int >::type anneal_iterations(anneal_iterationsSEXP);
+    rcpp_result_gen = Rcpp::wrap(run_vb_path_c_cpp(X, Y, mu, omega, c_pi, d_pi, tau_e, update_order, mu_alpha, tau_alpha, tau_b, max_iter, tol, save_history, convergence_method, update_pi, elbo_offset, disable_global_alpha, track_all_criteria, use_gamma_hyperprior_tau_alpha, r_alpha, d_alpha, use_gamma_hyperprior_tau_b, r_b, d_b, simultaneous_remap, use_annealing, anneal_iterations));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_spxlvb_compute_elbo_cpp", (DL_FUNC) &_spxlvb_compute_elbo_cpp, 12},
-    {"_spxlvb_run_vb_updates_cpp", (DL_FUNC) &_spxlvb_run_vb_updates_cpp, 28},
+    {"_spxlvb_run_vb_updates_cpp", (DL_FUNC) &_spxlvb_run_vb_updates_cpp, 30},
+    {"_spxlvb_run_vb_path_c_cpp", (DL_FUNC) &_spxlvb_run_vb_path_c_cpp, 28},
     {NULL, NULL, 0}
 };
 

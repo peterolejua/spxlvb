@@ -215,8 +215,9 @@ spxlvb <- function(
   r_b = NULL,
   d_b = NULL,
   seed = 12376, # seed for cv.glmnet initials
-  use_path_b = TRUE,
+  use_path_b = FALSE,
   use_path_c = FALSE,
+  use_marginal_path = TRUE,
   simultaneous_remap = FALSE,
   use_annealing = FALSE,
   anneal_iterations = 50
@@ -232,13 +233,13 @@ spxlvb <- function(
     stop("intercept = TRUE requires standardize = TRUE")
   }
 
-  if (use_path_b && use_path_c) {
-    stop("use_path_b and use_path_c are mutually exclusive")
+  if (sum(use_path_b, use_path_c, use_marginal_path) > 1) {
+    stop("use_path_b, use_path_c, and use_marginal_path are mutually exclusive")
   }
 
   if (use_path_c) {
     warning("use_path_c is experimental and retained for reproducibility. ",
-            "Path B (use_path_b = TRUE, now the default) is recommended for production use.")
+            "The marginal path (use_marginal_path = TRUE, the default) is recommended.")
   }
 
   if (use_annealing) {
@@ -369,7 +370,8 @@ spxlvb <- function(
       if (gamma_hyperprior_tau_b) d_b else 0,
       FALSE,       # use_joint_optimization (internal)
       10L,         # max_fp_iter (internal)
-      use_path_b
+      use_path_b,
+      use_marginal_path
     )
     fn <- "run_vb_updates_cpp"
   }
