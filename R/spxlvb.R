@@ -135,6 +135,17 @@
 #'   Default: \code{FALSE}.
 #' @param r_b Numeric scalar. Shape parameter for the Gamma hyperprior
 #'   on \eqn{\tau_b}. Only used when \code{gamma_hyperprior_tau_b = TRUE}.
+#' @param use_joint_optimization Logical. If TRUE, the coordinate update
+#'   alternates between updating \eqn{q_j} given \eqn{\alpha_j} and updating
+#'   \eqn{\alpha_j} given \eqn{q_j}, up to \code{max_fp_iter} times, instead
+#'   of using one of the single-pass orderings. This is the "alternating"
+#'   scheme; the single-pass conditioning ordering is its \code{max_fp_iter = 1}
+#'   case. Takes precedence over \code{use_path_b} and
+#'   \code{use_marginal_path}, which are not reached in this mode. Default
+#'   FALSE.
+#' @param max_fp_iter Integer. Maximum number of alternating sweeps within a
+#'   coordinate update when \code{use_joint_optimization = TRUE}; ignored
+#'   otherwise. Default 10.
 #'   Default: \code{b_prior_precision[1] / tau_e} (matches initial
 #'   \eqn{\tau_b}).
 #' @param d_b Numeric scalar. Rate parameter for the Gamma hyperprior
@@ -218,6 +229,8 @@ spxlvb <- function(
   use_path_b = FALSE,
   use_path_c = FALSE,
   use_marginal_path = TRUE,
+  use_joint_optimization = FALSE,
+  max_fp_iter = 10L,
   simultaneous_remap = FALSE,
   use_annealing = FALSE,
   anneal_iterations = 50
@@ -235,6 +248,25 @@ spxlvb <- function(
 
   if (sum(use_path_b, use_path_c, use_marginal_path) > 1) {
     stop("use_path_b, use_path_c, and use_marginal_path are mutually exclusive")
+  }
+
+  if (use_joint_optimization) {
+    # The C++ loop tests use_joint_optimization before the path flags, so it
+    # would silently override them. Make that explicit rather than silent.
+    if (use_path_c) {
+      stop("use_joint_optimization and use_path_c are mutually exclusive")
+    }
+    if (use_path_b || use_marginal_path) {
+      message("use_joint_optimization = TRUE: ignoring the path flags, ",
+              "which the coordinate loop does not reach in this mode.")
+      use_path_b <- FALSE
+      use_marginal_path <- FALSE
+    }
+    if (!is.numeric(max_fp_iter) || length(max_fp_iter) != 1L ||
+        max_fp_iter < 1) {
+      stop("max_fp_iter must be a single integer of at least 1")
+    }
+    max_fp_iter <- as.integer(max_fp_iter)
   }
 
   if (use_path_c) {
@@ -368,8 +400,8 @@ spxlvb <- function(
       gamma_hyperprior_tau_b,
       if (gamma_hyperprior_tau_b) r_b else 0,
       if (gamma_hyperprior_tau_b) d_b else 0,
-      FALSE,       # use_joint_optimization (internal)
-      10L,         # max_fp_iter (internal)
+      use_joint_optimization,
+      as.integer(max_fp_iter),
       use_path_b,
       use_marginal_path
     )
