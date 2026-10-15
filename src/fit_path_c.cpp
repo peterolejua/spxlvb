@@ -98,7 +98,6 @@ Rcpp::List run_vb_path_c_cpp(
     entropy_change_hist.reserve(max_iter);
   }
 
-  arma::vec sigma_sq_alpha(p + 1, fill::zeros);
   double r_alpha_post = 0.0;
   double d_alpha_post = 0.0;
   std::vector<double> tau_alpha_hist;
@@ -223,15 +222,6 @@ Rcpp::List run_vb_path_c_cpp(
         mu_alpha(j) = 1.0 - (alpha_joint(j) - mu_alpha(j));
       }
 
-      if (use_gamma_hyperprior_tau_alpha) {
-        // Posterior variance of alpha_j from the joint system
-        // sigma_sq_alpha = diag(system_matrix^{-1}) / tau_e
-        // But inverting is expensive; use diagonal approximation instead
-        for (int j = 0; j < p; ++j) {
-          sigma_sq_alpha(j) = 1.0 / (tau_e * system_matrix(j, j));
-        }
-      }
-
       // Recompute eta_bar, zeta, y_dot_eta_bar from scratch
       eta_bar = X * (omega % mu);
       {
@@ -274,10 +264,6 @@ Rcpp::List run_vb_path_c_cpp(
                                   / (zeta_mj + tau_alpha);
 
         alpha_hat(j) = optimal_alpha_j;
-
-        if (use_gamma_hyperprior_tau_alpha) {
-          sigma_sq_alpha(j) = 1.0 / (tau_e * (zeta_mj + tau_alpha));
-        }
 
         mu(j) = true_mu_j;
         sigma(j) = true_sigma_j;
@@ -328,13 +314,6 @@ Rcpp::List run_vb_path_c_cpp(
       zeta          *= optimal_alpha_p1 * optimal_alpha_p1;
       y_dot_eta_bar *= optimal_alpha_p1;
 
-      if (use_gamma_hyperprior_tau_alpha) {
-        sigma_sq_alpha(idx_p1) = 1.0 / (zeta + tau_alpha);
-      }
-    }
-
-    if (use_gamma_hyperprior_tau_alpha && disable_global_alpha) {
-      sigma_sq_alpha(idx_p1) = 1.0 / (zeta + tau_alpha);
     }
 
     // ================================================================
@@ -390,9 +369,11 @@ Rcpp::List run_vb_path_c_cpp(
 
     // Gamma hyperprior updates
     if (use_gamma_hyperprior_tau_alpha) {
+      // The ELBO carries + tau_alpha * sum_k (alpha_k - mu_alpha_k)^2 evaluated at
+      // alpha = 1 after remapping, so the rate takes (1 - mu_alpha_k)^2 with no
+      // variance term: alpha_k is a point estimate there, not a distribution.
       arma::vec alpha_diff = 1.0 - mu_alpha;
-      arma::vec E_alpha_sq = arma::square(alpha_diff) + sigma_sq_alpha;
-      d_alpha_post = d_alpha + 0.5 * tau_e * arma::accu(E_alpha_sq);
+      d_alpha_post = d_alpha + 0.5 * tau_e * arma::accu(arma::square(alpha_diff));
       tau_alpha = r_alpha_post / d_alpha_post;
       tau_alpha_hist.push_back(tau_alpha);
     }

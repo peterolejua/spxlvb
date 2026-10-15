@@ -100,7 +100,6 @@ Rcpp::List run_vb_updates_cpp(
     entropy_change_hist.reserve(max_iter);
   }
 
-  arma::vec sigma_sq_alpha(p + 1, fill::zeros);
   double r_alpha_post = 0.0;
   double d_alpha_post = 0.0;
   std::vector<double> tau_alpha_hist;
@@ -282,10 +281,6 @@ Rcpp::List run_vb_updates_cpp(
 
       alpha_hat(j) = optimal_alpha_j;
 
-      if (use_gamma_hyperprior_tau_alpha) {
-        sigma_sq_alpha(j) = 1.0 / alpha_prec;
-      }
-
       if (!track_coordinate_exploded_elbo) {
         tau_b(j) = true_tau_b_j;
         A_running *= optimal_alpha_j;
@@ -360,10 +355,6 @@ Rcpp::List run_vb_updates_cpp(
       zeta      *= optimal_alpha_p1 * optimal_alpha_p1;
       y_dot_eta_bar *= optimal_alpha_p1;
 
-      if (use_gamma_hyperprior_tau_alpha) {
-        sigma_sq_alpha(idx_p1) = 1.0 / (zeta + tau_alpha);
-      }
-
       if (track_coordinate_exploded_elbo) {
         double coord_exploded_elbo = compute_elbo_scalar(
           mu, sigma, omega, tau_b, mu_alpha,
@@ -391,10 +382,6 @@ Rcpp::List run_vb_updates_cpp(
         }
         prev_coordinate_alpha_stripped_elbo = coord_alpha_stripped_elbo;
       }
-    }
-
-    if (use_gamma_hyperprior_tau_alpha && disable_global_alpha) {
-      sigma_sq_alpha(idx_p1) = 1.0 / (zeta + tau_alpha);
     }
 
     double c_pi_tilde = c_pi;
@@ -451,9 +438,11 @@ Rcpp::List run_vb_updates_cpp(
     }
 
     if (use_gamma_hyperprior_tau_alpha) {
+      // The ELBO carries + tau_alpha * sum_k (alpha_k - mu_alpha_k)^2 evaluated at
+      // alpha = 1 after remapping, so the rate takes (1 - mu_alpha_k)^2 with no
+      // variance term: alpha_k is a point estimate there, not a distribution.
       arma::vec alpha_diff = 1.0 - mu_alpha;
-      arma::vec E_alpha_sq = arma::square(alpha_diff) + sigma_sq_alpha;
-      d_alpha_post = d_alpha + 0.5 * tau_e * arma::accu(E_alpha_sq);
+      d_alpha_post = d_alpha + 0.5 * tau_e * arma::accu(arma::square(alpha_diff));
       tau_alpha = r_alpha_post / d_alpha_post;
       tau_alpha_hist.push_back(tau_alpha);
     }
